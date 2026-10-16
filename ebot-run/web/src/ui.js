@@ -476,6 +476,7 @@ export class UI {
       <div class="tabs">${tabs.map((k) => `<button class="${k === this.shopTab ? 'on' : ''}" data-a="shoptab:${k}">${tabLbl[k]}</button>`).join('')}</div>
       ${body}
       ${Billing.mode === 'demo' ? `<p class="demo-note">${icon('info')}${t('demoStore')}</p>` : ''}
+      ${Billing.mode === 'play' && !Billing.ready ? `<p class="demo-note">${icon('info')}${t('offlineStore')}</p>` : ''}
       <button class="link" data-a="restore">${t('restore')}</button>`;
   }
 

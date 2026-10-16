@@ -11,9 +11,8 @@ import java.security.spec.X509EncodedKeySpec;
 
 /**
  * Optional on-device verification of Google Play purchase signatures using the app's
- * Base64-encoded RSA public key from Play Console. When no key is configured the check is
- * skipped. For production anti-fraud, also verify purchase tokens on a server with the
- * Google Play Developer API (purchases.products / purchases.subscriptionsv2).
+ * Base64-encoded RSA public key from Play Console. It runs offline on the phone, so no
+ * server is needed. When no key is configured the check is skipped.
  */
 final class Security {
     private static final String TAG = "EbotSecurity";

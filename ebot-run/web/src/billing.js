@@ -49,7 +49,8 @@ export const Billing = {
     const p = product(id);
     if (!p) return;
     if (this.mode === 'play') {
-      if (!this.ready) { this.handlers.message('storeUnavailable', 'error'); return; }
+      // When offline the native side answers 'unavailable' and reconnects in the background,
+      // so the next tap works as soon as the device is back online.
       try { native().purchase(id); } catch (e) { this.handlers.message('purchaseFail', 'error'); }
       return;
     }

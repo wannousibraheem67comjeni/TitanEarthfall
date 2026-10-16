@@ -20,6 +20,15 @@ A 3D endless runner with the **EBOT** identity: chase the thief robot *Glitch*, 
 | يومي | عجلة الحظ (مجانية كل 8 ساعات)، هدية 200 ذهب كل 8 ساعات، تقويم 7 أيام، 3 مهام متجددة |
 | أخرى | إنقاذ بالبطاريات/الجواهر، تطويرات مدة القدرات، أفضل الجولات، العربية/الإنجليزية، جودة رسوميات، اهتزاز |
 
+## أوفلاين بالكامل / Fully offline
+
+- **لا يوجد خادم ولا قاعدة بيانات.** كل شيء (اللعبة، three.js، الخطوط، الأصوات المولّدة) مدمج داخل الـ APK/AAB وداخل ملف HTML واحد في نسخة الويب.
+- اللعبة لا ترسل أي طلب شبكة (تم التحقق بفتحها مع حجب الإنترنت بالكامل: صفر طلبات، صفر أخطاء).
+- **الحفظ محلي:** `localStorage` داخل اللعبة + نسخة في `SharedPreferences` على أندرويد (مع النسخ الاحتياطي التلقائي من Google عند تفعيله على الهاتف).
+- **الشيء الوحيد الذي يحتاج إنترنت هو الشراء**، لأنه يتم عبر تطبيق متجر Google Play الموجود على الهاتف (وليس عبر خادم خاص بك). إن كان الهاتف بدون إنترنت تظهر رسالة، وعند عودة الاتصال يعيد التطبيق الاتصال بالمتجر تلقائياً.
+- التحقق من توقيع المشتريات (اختياري) يتم على الهاتف نفسه بمفتاح الترخيص، بدون خادم.
+- نسخة الويب: افتح `index.html` من ملف ZIP بنقرة مزدوجة، بدون إنترنت أو خادم.
+
 ## مشتريات Google Play / In-app products
 
 أنشئ هذه المنتجات في Play Console بنفس المعرّفات (Monetize → Products):
@@ -40,14 +49,14 @@ A 3D endless runner with the **EBOT** identity: chase the thief robot *Glitch*, 
 
 - السعر المعروض في اللعبة هو السعر المحلي القادم من Google Play.
 - تُمنح الجائزة فقط بعد حالة `PURCHASED`، ثم يتم الـ consume/acknowledge. المشتريات غير المكتملة تُعاد تلقائياً عند فتح التطبيق (لا تضيع أي عملية شراء)، وتُمنع الجوائز المكررة عبر purchase token.
-- اختياري: ضع مفتاح الترخيص (Base64 public key) في `android/gradle.properties` → `ebotPlayLicenseKey=` لتفعيل التحقق من التوقيع على الجهاز. للحماية الكاملة استخدم تحققاً على الخادم عبر Google Play Developer API.
+- اختياري: ضع مفتاح الترخيص (Base64 public key) في `android/gradle.properties` → `ebotPlayLicenseKey=` لتفعيل التحقق من التوقيع على الجهاز (بدون خادم).
 - نسخة الويب (ZIP / Artifact) لا تحتوي Google Play، لذلك المتجر فيها **تجريبي** ومكتوب عليه ذلك بوضوح.
 
 ## البناء / Build
 
 ```bash
 # 1) web game
-cd ebot-run/web && npm ci && npm run build      # -> dist/ (multi-file) and dist-single/index.html
+cd ebot-run/web && npm ci && npm run build      # -> dist/ (used by Android) and dist-single/index.html (offline web, double-click)
 
 # 2) Android (JDK 17+, Android SDK 36)
 cd ../android

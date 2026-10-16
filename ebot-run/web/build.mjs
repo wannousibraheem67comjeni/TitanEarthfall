@@ -48,6 +48,16 @@ function writeSingle() {
   html = html.replace('<link rel="icon" href="icon.svg">', () => `<link rel="icon" href="data:image/svg+xml;base64,${Buffer.from(icon).toString('base64')}">`);
   html = html.replace('<script src="game.js"></script>', () => `<script>${js}</script>`);
   fs.writeFileSync(path.join(single, 'index.html'), html);
+  fs.writeFileSync(path.join(single, 'README.txt'), [
+    'EBOT Gold Chase - offline web build / ايبوت: مطاردة الذهب - نسخة ويب أوفلاين',
+    '',
+    'Open index.html with a double-click (Chrome, Edge, Firefox, Safari). No internet, server or database needed.',
+    'افتح الملف index.html بنقرة مزدوجة. لا يحتاج إنترنت ولا خادم ولا قاعدة بيانات.',
+    '',
+    'Progress is saved in this browser only. The store in the web build is a demo (no payment).',
+    'يُحفظ التقدم في هذا المتصفح فقط. المتجر في نسخة الويب تجريبي بدون دفع.',
+    '',
+  ].join('\r\n'));
 }
 
 if (watch) {

@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Google Play Billing (Play Billing Library 9) for the game.
  *
+ * The game is fully offline: there is no game server and no database. Purchases go through the
+ * Google Play Store app on the device; the reward is stored in the local save game.
+ *
  * Flow: the web game calls {@link #init} with its product IDs. Product details and existing
  * purchases are queried once connected. Every PURCHASED purchase is forwarded to JavaScript,
  * which grants the reward, stores the purchase token (to de-duplicate re-deliveries) and then
@@ -268,6 +271,7 @@ public final class BillingManager implements PurchasesUpdatedListener {
         main.post(() -> {
             if (client == null || !client.isReady()) {
                 if (manual) fail("unavailable", "billing not ready");
+                if (client != null) connect();
                 return;
             }
             final Set<String> owned = ConcurrentHashMap.newKeySet();
@@ -305,8 +309,11 @@ public final class BillingManager implements PurchasesUpdatedListener {
         });
     }
 
+    /** Back in the foreground: reconnect if the store was unreachable (e.g. the device was offline). */
     public void onResume() {
-        if (client != null && client.isReady()) queryPurchases(false);
+        if (client == null) return;
+        if (client.isReady()) queryPurchases(false);
+        else main.post(this::connect);
     }
 
     public void destroy() {
