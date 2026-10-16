@@ -1,0 +1,16 @@
+{
+  "name": "ebot-gold-chase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EBOT Gold Chase - 3D endless runner (web build used by the Android app and the web/artifact build)",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "serve": "npx http-server dist -p 8080 -c-1"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "three": "^0.170.0"
+  }
+}
