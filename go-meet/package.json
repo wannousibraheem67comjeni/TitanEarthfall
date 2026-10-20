@@ -1,5 +1,5 @@
 {
-  "name": "titan-meet",
+  "name": "go-meet",
   "version": "1.0.0",
   "description": "Google Meet-style video conferencing (WebRTC + Socket.IO)",
   "main": "server.js",

@@ -5,6 +5,7 @@ const http = require('http');
 const crypto = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
+const github = require('./github');
 
 const PORT = Number(process.env.PORT) || 3000;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -29,7 +30,9 @@ app.disable('x-powered-by');
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/config', (_req, res) => {
-  res.json({ googleClientId: GOOGLE_CLIENT_ID, iceServers: iceServers(), maxParticipants: MAX_PARTICIPANTS });
+  res.json({ googleClientId: GOOGLE_CLIENT_ID, iceServers: iceServers(), maxParticipants: MAX_PARTICIPANTS,
+    github: { repos: github.repos(), canWrite: github.canWrite() },
+  });
 });
 
 // Meeting links look like /abc-defg-hij; every such path serves the app shell.
@@ -139,6 +142,39 @@ io.on('connection', (socket) => {
     if (e) io.to(roomId).emit('reaction', { from: socket.id, name: me.name, emoji: e });
   });
 
+  // ----- GitHub: browse linked repos, share items into the chat, create issues -----
+  socket.on('gh:list', async ({ repo, kind } = {}, ack) => {
+    if (!me || typeof ack !== 'function') return;
+    try { ack({ items: await github.list(repo, kind) }); } catch (err) { ack({ error: err.message }); }
+  });
+
+  socket.on('gh:share', async ({ repo, item } = {}, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
+    if (!me) return;
+    try {
+      const card = await github.card(repo, item || {});
+      io.to(roomId).emit('chat', { from: socket.id, name: me.name, picture: me.picture, text: '', card, at: Date.now() });
+      reply({ ok: true });
+    } catch (err) { reply({ error: err.message }); }
+  });
+
+  let lastIssueAt = 0;
+  socket.on('gh:create-issue', async ({ repo, title, body } = {}, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
+    if (!me) return;
+    const t = clean(title, 200);
+    if (!t) return reply({ error: 'العنوان مطلوب' });
+    if (Date.now() - lastIssueAt < 10000) return reply({ error: 'انتظر قليلًا قبل إنشاء Issue آخر' });
+    lastIssueAt = Date.now();
+    try {
+      const text = String(body || '').slice(0, 20000) +
+        `\n\n---\n_أُنشئ من اجتماع Go Meet \`${roomId}\` بواسطة ${me.name}_`;
+      const card = await github.createIssue(repo, t, text);
+      io.to(roomId).emit('chat', { from: socket.id, name: me.name, picture: me.picture, text: 'أنشأ Issue جديد', card, at: Date.now() });
+      reply({ card });
+    } catch (err) { reply({ error: err.message }); }
+  });
+
   socket.on('disconnect', () => {
     if (!roomId) return;
     const room = rooms.get(roomId);
@@ -151,6 +187,7 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Meet server listening on http://localhost:${PORT}`);
+  console.log(`Go Meet server listening on http://localhost:${PORT}`);
+  console.log('Linked GitHub repos: ' + (github.repos().join(', ') || 'none'));
   if (!GOOGLE_CLIENT_ID) console.log('GOOGLE_CLIENT_ID is not set: running in guest mode (name only).');
 });

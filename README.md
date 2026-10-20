@@ -15,3 +15,6 @@ Initial production-oriented gameplay foundation for a third-person procedural su
 Create a Unity LTS project, place these scripts under `Assets/Scripts/`, configure a Player tagged `Player`, and add the managers to a bootstrap scene. Enable the Input System package for modern input; the controller also contains a legacy Input fallback.
 
 This is the code foundation only. Procedural segment streaming, authored scenes/prefabs, animation, UI, audio, shaders, save/cloud services, analytics and automated tests remain subsequent production layers.
+## Go Meet
+
+The repository also contains **Go Meet** (`go-meet/`), a Google Meet-style video conferencing app linked to this repository's GitHub issues, pull requests and commits. See `go-meet/README.md`.

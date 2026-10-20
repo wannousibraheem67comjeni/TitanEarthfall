@@ -1,4 +1,4 @@
-# Titan Meet
+# Go Meet · جو ميت
 
 A Google Meet-style video conferencing app: real-time video and audio, screen sharing, chat, reactions and raise hand, all in the browser.
 
@@ -10,12 +10,22 @@ A Google Meet-style video conferencing app: real-time video and audio, screen sh
 
 The control bar has: mic, camera, reactions (emoji), screen sharing (one click), raise hand, and leave. On the side you'll find chat, the participant list and copy link.
 
+### GitHub integration
+
+The GitHub button in the meeting bar opens a panel for the linked repositories (by default `wannousibraheem67comjeni/TitanEarthfall`):
+
+- Browse **Issues**, **Pull requests** and **Commits**, each with its status and labels.
+- Share any item in the chat with one click. It appears for everyone as a card that opens on GitHub.
+- **Create an Issue** straight from the meeting (for example, the meeting's tasks), with the option to attach the chat transcript.
+
+For safety, the server only reaches repositories listed in `GITHUB_REPOS`.
+
 Shortcuts: `Ctrl+D` mic, `Ctrl+E` camera, `Ctrl+Alt+H` raise hand.
 
 ## Run
 
 ```bash
-cd meet-app
+cd go-meet
 npm install
 GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com npm start
 # http://localhost:3000
@@ -36,6 +46,8 @@ If you don't set `GOOGLE_CLIENT_ID`, the app runs in guest mode: it asks for a n
 | `PORT` | Server port (default 3000) |
 | `GOOGLE_CLIENT_ID` | Google OAuth Client ID. Without it, guest mode is on |
 | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | TURN server (strongly recommended in production so people behind strict networks can connect). Several URLs can be separated with commas |
+| `GITHUB_REPOS` | Linked repositories, comma separated (`owner/repo,owner/repo2`). Default `wannousibraheem67comjeni/TitanEarthfall` |
+| `GITHUB_TOKEN` | Optional GitHub token: for private repositories, a higher request limit, and creating Issues (needs the *Issues: Read & write* permission) |
 | `MAX_PARTICIPANTS` | Maximum participants per meeting (default 16) |
 
 ## Deployment

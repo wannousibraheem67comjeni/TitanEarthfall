@@ -1,12 +1,13 @@
 'use strict';
 
 /* ======================================================================
- * Titan Meet client
+ * Go Meet client
  *  - Sign in (Google account chooser, or a guest name when Google is not configured)
  *  - Then open camera + mic and join the meeting directly (no lobby)
  *  - WebRTC mesh: every participant connects to every other participant.
  *    Each connection has 3 fixed transceivers: [0] mic, [1] camera, [2] screen.
  *    Toggling devices / screen sharing uses replaceTrack, so no renegotiation.
+ *  - GitHub panel: browse linked repos, share issues/PRs/commits into the chat, create issues
  * ==================================================================== */
 
 const $ = (id) => document.getElementById(id);
@@ -36,6 +37,8 @@ const state = {
   audioCtx: null,
   meters: new Map(),       // tile key -> { analyser, data, source }
   unread: 0,
+  chatLog: [],             // plain-text transcript, used to attach the chat to a GitHub issue
+  gh: { repo: null, kind: 'issues', loaded: false },
 };
 
 /* ---------------------------- Utilities ---------------------------- */
@@ -108,6 +111,7 @@ async function boot() {
     state.config = { googleClientId: '', iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
   }
   if (state.config.googleClientId) initGoogle();
+  setupGithub();
 
   const code = parseCode(location.pathname);
   if (code) {
@@ -673,9 +677,12 @@ function openPanel(name) {
   $('panel').classList.toggle('hidden', !state.panel);
   $('chatPane').classList.toggle('hidden', state.panel !== 'chat');
   $('peoplePane').classList.toggle('hidden', state.panel !== 'people');
-  $('panelTitle').textContent = state.panel === 'chat' ? 'الرسائل أثناء الاجتماع' : 'المشاركون';
+  $('githubPane').classList.toggle('hidden', state.panel !== 'github');
+  $('panelTitle').textContent = { chat: 'الرسائل أثناء الاجتماع', people: 'المشاركون', github: 'مشاريع GitHub' }[state.panel] || '';
   $('chatBtn').classList.toggle('active', state.panel === 'chat');
   $('peopleBtn').classList.toggle('active', state.panel === 'people');
+  $('githubBtn').classList.toggle('active', state.panel === 'github');
+  if (state.panel === 'github' && !state.gh.loaded) loadGithub();
   if (state.panel === 'chat') {
     state.unread = 0;
     $('chatDot').classList.add('hidden');
@@ -710,7 +717,8 @@ function renderPeople() {
   }
 }
 
-function addMessage({ from, name, text, at }) {
+function addMessage({ from, name, text, at, card }) {
+  state.chatLog.push(`[${timeText(new Date(at))}] ${name}: ${text}${card ? (text ? ' ' : '') + card.url : ''}`);
   const wrap = document.createElement('div');
   wrap.className = 'msg';
   const meta = document.createElement('div');
@@ -730,13 +738,14 @@ function addMessage({ from, name, text, at }) {
     } else if (part) body.append(document.createTextNode(part));
   }
   wrap.append(meta, body);
+  if (card) wrap.append(renderCard(card));
   const box = $('messages');
   box.append(wrap);
   box.scrollTop = box.scrollHeight;
   if (state.panel !== 'chat' && from !== state.self?.socketId) {
     state.unread++;
     $('chatDot').classList.remove('hidden');
-    toast(`${name}: ${text.slice(0, 80)}`);
+    toast(`${name}: ${(text || card?.title || '').slice(0, 80)}`);
     chime([988]);
   }
 }
@@ -776,8 +785,149 @@ function leave() {
   state.pinned = null;
   if (state.panel) openPanel(state.panel);
   $('messages').replaceChildren();
+  state.chatLog = [];
   show('left');
 }
+
+/* ------------------------------ GitHub ------------------------------ */
+
+const GH_ICONS = {
+  issue: { open: 'adjust', closed: 'check_circle' },
+  pull: { open: 'call_merge', closed: 'block', merged: 'merge' },
+  commit: { default: 'commit' },
+};
+
+function cardIcon(item) {
+  const span = document.createElement('span');
+  span.className = 'ms gi st-' + (item.type === 'commit' ? 'commit' : item.state);
+  const set = GH_ICONS[item.type];
+  span.textContent = set[item.state] || set.default || set.open;
+  return span;
+}
+
+function cardMeta(item) {
+  const id = item.type === 'commit' ? item.sha.slice(0, 7) : '#' + item.number;
+  const when = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('ar', { day: 'numeric', month: 'short' }) : '';
+  return `${item.repo.split('/')[1]} ${id} · ${item.author}${when ? ' · ' + when : ''}`;
+}
+
+function renderCard(item) {
+  const a = document.createElement('a');
+  a.className = 'gh-card';
+  a.href = item.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  const b = document.createElement('div');
+  const t = document.createElement('div'); t.className = 'gt'; t.textContent = item.title;
+  const m = document.createElement('div'); m.className = 'gm'; m.textContent = cardMeta(item);
+  b.append(t, m);
+  a.append(cardIcon(item), b);
+  return a;
+}
+
+function setupGithub() {
+  const gh = state.config.github || { repos: [] };
+  $('githubBtn').classList.toggle('hidden', !gh.repos.length);
+  const sel = $('ghRepo');
+  sel.replaceChildren(...gh.repos.map((r) => new Option(r, r)));
+  state.gh.repo = gh.repos[0] || null;
+  if (state.gh.repo) $('ghOpen').href = 'https://github.com/' + state.gh.repo;
+  $('ghNewNote').textContent = gh.canWrite ? '' : 'إنشاء Issue غير مُفعّل: يحتاج الخادم إلى GITHUB_TOKEN.';
+}
+
+function ghRequest(event, payload) {
+  return new Promise((resolve, reject) => {
+    if (!state.socket) return reject(new Error('غير متصل'));
+    state.socket.timeout(15000).emit(event, payload, (err, res) => {
+      if (err) return reject(new Error('انتهت المهلة'));
+      if (res.error) return reject(new Error(res.error));
+      resolve(res);
+    });
+  });
+}
+
+async function loadGithub() {
+  const { repo, kind } = state.gh;
+  if (!repo) return;
+  $('ghNew').classList.toggle('hidden', kind !== 'new');
+  $('ghList').classList.toggle('hidden', kind === 'new');
+  $('ghStatus').textContent = '';
+  if (kind === 'new') return;
+  state.gh.loaded = true;
+  $('ghStatus').textContent = 'جارٍ التحميل…';
+  try {
+    const { items } = await ghRequest('gh:list', { repo, kind });
+    if (state.gh.repo !== repo || state.gh.kind !== kind) return;
+    renderGhList(items);
+    $('ghStatus').textContent = items.length ? '' : 'لا يوجد شيء هنا بعد.';
+  } catch (err) {
+    $('ghList').replaceChildren();
+    $('ghStatus').textContent = err.message;
+  }
+}
+
+function renderGhList(items) {
+  const ul = $('ghList');
+  ul.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement('li');
+    const b = document.createElement('div'); b.className = 'gb';
+    const t = document.createElement('a'); t.className = 'gt';
+    t.href = item.url; t.target = '_blank'; t.rel = 'noopener noreferrer'; t.textContent = item.title;
+    const m = document.createElement('div'); m.className = 'gm'; m.textContent = cardMeta(item);
+    b.append(t, m);
+    if (item.labels?.length) {
+      const labels = document.createElement('div');
+      for (const l of item.labels) {
+        const s = document.createElement('span'); s.className = 'label'; s.textContent = l.name;
+        if (/^[0-9a-f]{6}$/i.test(l.color)) s.style.background = '#' + l.color;
+        labels.append(s);
+      }
+      b.append(labels);
+    }
+    const share = document.createElement('button');
+    share.className = 'icon-btn share'; share.title = 'مشاركة في الاجتماع';
+    share.innerHTML = '<span class="ms">forward_to_inbox</span>';
+    share.onclick = async () => {
+      share.disabled = true;
+      try {
+        await ghRequest('gh:share', { repo: item.repo, item: { type: item.type, number: item.number, sha: item.sha } });
+        toast('تمت المشاركة في المحادثة');
+      } catch (err) { toast(err.message); }
+      share.disabled = false;
+    };
+    li.append(cardIcon(item), b, share);
+    ul.append(li);
+  }
+}
+
+$('ghRepo').onchange = (e) => {
+  state.gh.repo = e.target.value;
+  $('ghOpen').href = 'https://github.com/' + state.gh.repo;
+  loadGithub();
+};
+$('ghRefresh').onclick = loadGithub;
+for (const tab of document.querySelectorAll('.gh-tabs button')) {
+  tab.onclick = () => {
+    document.querySelectorAll('.gh-tabs button').forEach((b) => b.classList.toggle('active', b === tab));
+    state.gh.kind = tab.dataset.kind;
+    loadGithub();
+  };
+}
+$('ghNew').onsubmit = async (e) => {
+  e.preventDefault();
+  let body = $('ghBody').value.trim();
+  if ($('ghAttachChat').checked && state.chatLog.length) {
+    body += '\n\n### محادثة الاجتماع\n```\n' + state.chatLog.join('\n').replace(/```/g, "'''") + '\n```';
+  }
+  const btn = $('ghNew').querySelector('button');
+  btn.disabled = true;
+  try {
+    const { card } = await ghRequest('gh:create-issue', { repo: state.gh.repo, title: $('ghTitle').value, body });
+    $('ghTitle').value = ''; $('ghBody').value = ''; $('ghAttachChat').checked = false;
+    toast(`تم إنشاء Issue #${card.number}`);
+    state.gh.loaded = false;
+  } catch (err) { toast(err.message); }
+  btn.disabled = false;
+};
 
 /* ------------------------------ Wiring ------------------------------ */
 
@@ -797,6 +947,7 @@ $('handBtn').onclick = toggleHand;
 $('leaveBtn').onclick = () => { chime([660, 440]); leave(); };
 $('chatBtn').onclick = () => openPanel('chat');
 $('peopleBtn').onclick = () => openPanel('people');
+$('githubBtn').onclick = () => openPanel('github');
 $('closePanel').onclick = () => openPanel(state.panel);
 $('copyLink').onclick = copyLink;
 $('copyLink2').onclick = copyLink;

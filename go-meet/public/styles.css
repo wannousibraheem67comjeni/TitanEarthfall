@@ -53,6 +53,7 @@ input { font: inherit; }
   position: relative; width: 44px; height: 44px; border-radius: 50%; border: 0; background: none;
   color: inherit; display: inline-grid; place-items: center;
 }
+.icon-btn:is(a) { text-decoration: none; color: inherit; }
 .icon-btn:hover { background: rgba(128,128,128,.18); }
 .icon-btn.active { color: var(--accent); }
 
@@ -165,8 +166,8 @@ input { font: inherit; }
 .panel-head h2 { font-size: 18px; font-weight: 500; margin: 0; }
 .pane { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0 16px 16px; gap: 10px; }
 .messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.msg .meta { font-size: 13px; font-weight: 500; }
-.msg .meta time { color: var(--muted); font-weight: 400; margin-inline-start: 8px; font-size: 12px; }
+.msg .meta { font-size: 13px; font-weight: 500; display: flex; gap: 8px; align-items: baseline; }
+.msg .meta time { color: var(--muted); font-weight: 400; font-size: 12px; }
 .msg .body { font-size: 14px; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
 .msg .body a { color: var(--primary); }
 .chat-form { display: flex; align-items: center; background: rgba(128,128,128,.15); border-radius: 24px; padding: 0 6px 0 0; }
@@ -178,6 +179,34 @@ input { font: inherit; }
 .people .pn div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .people .pn small { color: var(--muted); }
 .people .ms { font-size: 20px; color: var(--muted); }
+
+/* ---------- GitHub ---------- */
+.gh-mark { display: block; }
+.gh-repo { display: flex; align-items: center; gap: 4px; }
+.gh-repo select { flex: 1; min-width: 0; height: 40px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--text); padding: 0 8px; }
+.gh-repo select option { background: var(--panel); }
+.gh-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.gh-tabs button { border: 0; background: none; color: var(--muted); padding: 8px 10px; border-bottom: 2px solid transparent; font-size: 13px; display: flex; align-items: center; }
+.gh-tabs button .ms { font-size: 20px; }
+.gh-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+.gh-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.gh-list li { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.gh-list .gi { flex: none; font-size: 20px; margin-top: 1px; }
+.gh-list .gb { flex: 1; min-width: 0; }
+.gh-list .gt { font-size: 14px; color: var(--text); text-decoration: none; display: block; word-break: break-word; }
+.gh-list .gt:hover { color: var(--primary); }
+.gh-list .gm { font-size: 12px; color: var(--muted); margin-top: 2px; direction: ltr; text-align: right; }
+.gh-list .share { width: 36px; height: 36px; flex: none; color: var(--primary); }
+.label { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 10px; margin-inline-end: 4px; line-height: 18px; color: #fff; }
+.st-open { color: #1a7f37; } .st-closed { color: #cf222e; } .st-merged { color: #8250df; } .st-commit { color: var(--muted); }
+.gh-new { display: flex; flex-direction: column; gap: 8px; }
+.gh-new input, .gh-new textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--text); padding: 10px; resize: vertical; }
+.gh-new .check { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.gh-card { display: flex; gap: 10px; margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); }
+.gh-card:hover { border-color: var(--primary); }
+.gh-card .ms { font-size: 20px; }
+.gh-card .gt { font-size: 14px; font-weight: 500; word-break: break-word; }
+.gh-card .gm { font-size: 12px; color: var(--muted); direction: ltr; text-align: right; }
 
 @media (max-width: 760px) {
   #meeting { grid-template-columns: 1fr; }
