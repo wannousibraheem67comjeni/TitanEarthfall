@@ -14,7 +14,7 @@ public sealed class BiomeManager:MonoBehaviour
  public bool StageOneComplete=>StageElapsedSeconds>=stageOneDurationSeconds;
  public event Action<Biome,Biome> BiomeChanged;public event Action StageOneCompleted;
  private bool completionRaised;
- private void Awake(){if(definitions==null||definitions.Length==0)definitions=new[]{new BiomeDefinition{biome=Biome.MountainHeights}};CurrentBiomeIndex=Mathf.Clamp(startingBiomeIndex,0,definitions.Length-1);CurrentBiome=definitions[CurrentBiomeIndex].biome;}
+ private void Awake(){if(definitions==null||definitions.Length==0){var order=(Biome[])Enum.GetValues(typeof(Biome));definitions=new BiomeDefinition[order.Length];for(int i=0;i<order.Length;i++)definitions[i]=new BiomeDefinition{biome=order[i]};}CurrentBiomeIndex=Mathf.Clamp(startingBiomeIndex,0,definitions.Length-1);CurrentBiome=definitions[CurrentBiomeIndex].biome;}
  private void Update(){if(CurrentBiomeIndex==0&&!StageOneComplete){StageElapsedSeconds+=Time.deltaTime;if(StageOneComplete&&!completionRaised){completionRaised=true;StageOneCompleted?.Invoke();if(autoAdvanceStageOne)AdvanceBiome();}}}
  /// <summary>Moves to the next configured biome.</summary>
  public bool AdvanceBiome(){if(CurrentBiomeIndex>=definitions.Length-1)return false;Biome old=CurrentBiome;CurrentBiome=definitions[++CurrentBiomeIndex].biome;BiomeChanged?.Invoke(old,CurrentBiome);return true;}

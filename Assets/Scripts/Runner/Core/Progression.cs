@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace TitanEarthfall.Runner
 {
-    public enum MissionType : byte
+    public enum MissionType
     {
         CollectCoins,
         RunDistance,

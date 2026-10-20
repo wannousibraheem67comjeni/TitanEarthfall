@@ -16,6 +16,8 @@ namespace TitanEarthfall.Runner.Net
         public float ResultsLingerSeconds = 10f;
         /// <summary>Distance tolerance (meters) before a snapshot counts as a speed violation.</summary>
         public float SnapshotTolerance = 10f;
+        /// <summary>How much earlier than its arrival a reported finish time may be (network latency).</summary>
+        public float FinishLatencyAllowance = 0.5f;
         public float[] BotSkills = { 0.985f, 0.95f, 0.9f, 0.85f };
         public string[] BotNames = { "Titan Tom", "Rusty", "Blaze", "Nova", "Dune", "Pixel", "Echo", "Rook" };
     }
@@ -364,6 +366,11 @@ namespace TitanEarthfall.Runner.Net
             if (float.IsNaN(state.Y) || float.IsInfinity(state.Y)) state.Y = player.State.Y;
             state.Score = Math.Max(0, state.Score);
             state.Coins = Math.Max(0, state.Coins);
+
+            // Clients only simulate while alive, so their clock skips time spent on the revive screen.
+            // The room's clock is authoritative: nobody finishes earlier than the room heard about it.
+            if (final && state.Finished)
+                state.FinishTime = Math.Max(state.FinishTime, RaceTime - settings.FinishLatencyAllowance);
 
             bool legitFinish = final && state.Finished
                 && state.Distance >= settings.RaceLength - 1f

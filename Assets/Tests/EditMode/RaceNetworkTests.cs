@@ -231,6 +231,27 @@ namespace TitanEarthfall.Runner.Tests
         }
 
         [Test]
+        public void FinishTime_CannotPredateArrival()
+        {
+            var config = new RunnerConfig();
+            var settings = FastSettings();
+            settings.RaceLength = 100f;
+            var room = new RaceRoom("SLOW", true, 5, config, settings);
+            byte runner = room.AddHuman("Reviver");
+            room.SetReady(runner, true);
+            Tick(room, 0.7f);
+            // The runner crossed the line at 6 s of simulated time, but spent 5 s on the revive screen.
+            Tick(room, 11f);
+            room.HandleFinished(runner, new FinishedMessage
+            {
+                State = new RunnerNetState { Distance = 100f, Finished = true, FinishTime = 6f, Alive = true }
+            });
+            var player = room.Find(runner);
+            Assert.IsTrue(player.State.Finished);
+            Assert.AreEqual(room.RaceTime - settings.FinishLatencyAllowance, player.State.FinishTime, 1e-3f);
+        }
+
+        [Test]
         public void Disconnect_DuringRace_IsDnf_AndEmptyRoomCloses()
         {
             var room = new RaceRoom("GONE", true, 5, new RunnerConfig(), FastSettings());
