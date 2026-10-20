@@ -1,0 +1,19 @@
+{
+  "name": "titan-meet",
+  "version": "1.0.0",
+  "description": "Google Meet-style video conferencing (WebRTC + Socket.IO)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.22.3",
+    "socket.io": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}

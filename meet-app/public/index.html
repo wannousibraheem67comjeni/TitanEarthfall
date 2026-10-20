@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Titan Meet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0..1,0">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- Home -->
+  <section id="home" class="view">
+    <header class="topbar">
+      <div class="brand"><span class="logo"><span class="ms">videocam</span></span> Titan Meet</div>
+      <div id="clock" class="clock"></div>
+    </header>
+    <main class="hero">
+      <div class="hero-text">
+        <h1>اجتماعات فيديو مميزة، للجميع</h1>
+        <p>تواصل وتعاون واحتفل من أي مكان. اضغط «اجتماع جديد»، اختر حسابك، وستدخل مباشرة.</p>
+        <div class="hero-actions">
+          <button id="newMeetingBtn" class="btn primary"><span class="ms">video_call</span> اجتماع جديد</button>
+          <form id="joinForm" class="join-form">
+            <span class="ms">keyboard</span>
+            <input id="joinCode" placeholder="أدخل رمزًا أو رابطًا" autocomplete="off" dir="ltr">
+            <button class="btn text" type="submit" disabled>انضمام</button>
+          </form>
+        </div>
+        <p id="homeError" class="error" role="alert"></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-tile t1"><span class="ms">person</span></div>
+        <div class="art-tile t2"><span class="ms">face</span></div>
+        <div class="art-tile t3"><span class="ms">present_to_all</span></div>
+        <div class="art-tile t4"><span class="ms">back_hand</span></div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Guest name (only when Google sign-in is not configured) -->
+  <dialog id="guestDialog" class="dialog">
+    <form method="dialog" id="guestForm">
+      <h2>ما اسمك؟</h2>
+      <p class="muted">تسجيل الدخول بـ Google غير مُفعّل على هذا الخادم، لذلك أدخل اسمك للانضمام.</p>
+      <input id="guestName" maxlength="40" required placeholder="اسمك">
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate class="btn text">إلغاء</button>
+        <button value="ok" class="btn primary">متابعة</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Connecting splash -->
+  <section id="joining" class="view hidden">
+    <div class="spinner"></div>
+    <p id="joiningText">جارٍ الانضمام…</p>
+  </section>
+
+  <!-- Meeting -->
+  <section id="meeting" class="view hidden">
+    <div class="stage">
+      <div id="spotlight" class="spotlight hidden"></div>
+      <div id="grid" class="grid"></div>
+      <div id="reactions" class="reactions" aria-live="polite"></div>
+      <div id="toasts" class="toasts"></div>
+    </div>
+
+    <aside id="panel" class="panel hidden">
+      <header class="panel-head">
+        <h2 id="panelTitle"></h2>
+        <button class="icon-btn" id="closePanel" title="إغلاق"><span class="ms">close</span></button>
+      </header>
+      <div id="chatPane" class="pane">
+        <p class="muted small">لا تُحفظ الرسائل، وتظهر فقط للمشاركين أثناء الاجتماع.</p>
+        <div id="messages" class="messages"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" placeholder="إرسال رسالة إلى الجميع" autocomplete="off" maxlength="2000">
+          <button class="icon-btn" title="إرسال"><span class="ms">send</span></button>
+        </form>
+      </div>
+      <div id="peoplePane" class="pane hidden">
+        <button id="copyLink2" class="btn outline"><span class="ms">link</span> نسخ رابط الاجتماع</button>
+        <ul id="people" class="people"></ul>
+      </div>
+    </aside>
+
+    <footer class="controls">
+      <div class="left-info">
+        <span id="meetClock"></span><span class="sep">|</span><span id="meetCode" dir="ltr"></span>
+      </div>
+      <div class="center">
+        <button id="micBtn" class="ctl" title="الميكروفون (Ctrl+D)"><span class="ms">mic</span></button>
+        <button id="camBtn" class="ctl" title="الكاميرا (Ctrl+E)"><span class="ms">videocam</span></button>
+        <div class="pop-wrap">
+          <button id="emojiBtn" class="ctl" title="إرسال تفاعل"><span class="ms">mood</span></button>
+          <div id="emojiBar" class="emoji-bar hidden"></div>
+        </div>
+        <button id="shareBtn" class="ctl" title="مشاركة الشاشة"><span class="ms">present_to_all</span></button>
+        <button id="handBtn" class="ctl" title="رفع اليد (Ctrl+Alt+H)"><span class="ms">back_hand</span></button>
+        <button id="leaveBtn" class="ctl leave" title="مغادرة الاجتماع"><span class="ms">call_end</span></button>
+      </div>
+      <div class="right">
+        <button id="copyLink" class="icon-btn" title="نسخ الرابط"><span class="ms">link</span></button>
+        <button id="peopleBtn" class="icon-btn" title="المشاركون"><span class="ms">group</span><span id="peopleCount" class="badge">1</span></button>
+        <button id="chatBtn" class="icon-btn" title="المحادثة"><span class="ms">chat</span><span id="chatDot" class="dot hidden"></span></button>
+      </div>
+    </footer>
+  </section>
+
+  <!-- After leaving -->
+  <section id="left" class="view hidden">
+    <h1>لقد غادرت الاجتماع</h1>
+    <div class="hero-actions center-row">
+      <button id="rejoinBtn" class="btn outline">إعادة الانضمام</button>
+      <button id="homeBtn" class="btn primary">العودة إلى الشاشة الرئيسية</button>
+    </div>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
