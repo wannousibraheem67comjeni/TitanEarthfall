@@ -1,0 +1,23 @@
+# build output
+web/dist/
+web/dist-single/
+web/node_modules/
+tools/node_modules/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/www/
+releases/
+*.apk
+*.aab
+
+# secrets: never commit
+android/keystore/
+android/keystore.properties
+android/local.properties
+*.jks
+*.keystore
+
+# misc
+.DS_Store
+docs/locks/

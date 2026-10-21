@@ -1,0 +1,10 @@
+{
+  "name": "hopinet-tools",
+  "private": true,
+  "type": "module",
+  "description": "Offline data generators for Hopinet (world map outline).",
+  "dependencies": {
+    "topojson-client": "3.1.0",
+    "world-atlas": "2.0.2"
+  }
+}

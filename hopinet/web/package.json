@@ -1,0 +1,18 @@
+{
+  "name": "hopinet-web",
+  "version": "3.1.2",
+  "private": true,
+  "description": "Hopinet - 3D endless runner (web build used by the Android app, the PWA and the single-file build)",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "serve": "npx http-server dist -p 8080 -c-1"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@fontsource-variable/baloo-bhaijaan-2": "^5.3.0",
+    "esbuild": "^0.24.2",
+    "sharp": "^0.35.5",
+    "three": "^0.170.0"
+  }
+}

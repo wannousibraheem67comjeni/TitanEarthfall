@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- ears -->
+    <path android:fillColor="#FFFFFF" android:strokeColor="#08303F" android:strokeWidth="2.4" android:strokeLineJoin="round"
+        android:pathData="M43,54 C36,32 38,19 44,21 C50,23 52,38 51,54 Z"/>
+    <path android:fillColor="#FFFFFF" android:strokeColor="#08303F" android:strokeWidth="2.4" android:strokeLineJoin="round"
+        android:pathData="M65,54 C72,32 70,19 64,21 C58,23 56,38 57,54 Z"/>
+    <path android:fillColor="#FFB3C7" android:pathData="M44.5,48 C41.5,35 42.5,27 44.5,27 C46.5,27 47.5,36 47.5,48 Z"/>
+    <path android:fillColor="#FFB3C7" android:pathData="M63.5,48 C66.5,35 65.5,27 63.5,27 C61.5,27 60.5,36 60.5,48 Z"/>
+    <!-- face -->
+    <path android:fillColor="#FFFFFF" android:strokeColor="#08303F" android:strokeWidth="2.4"
+        android:pathData="M32,64 a22,18 0 1,0 44,0 a22,18 0 1,0 -44,0 Z"/>
+    <!-- goggles -->
+    <path android:fillColor="#4DD8FF" android:strokeColor="#08303F" android:strokeWidth="2.2"
+        android:pathData="M38,62 a7.5,7.5 0 1,0 15,0 a7.5,7.5 0 1,0 -15,0 Z"/>
+    <path android:fillColor="#4DD8FF" android:strokeColor="#08303F" android:strokeWidth="2.2"
+        android:pathData="M55,62 a7.5,7.5 0 1,0 15,0 a7.5,7.5 0 1,0 -15,0 Z"/>
+    <path android:strokeColor="#08303F" android:strokeWidth="2.2" android:pathData="M53,62 L55,62"/>
+    <path android:fillColor="#08303F" android:pathData="M42.7,62.5 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z"/>
+    <path android:fillColor="#08303F" android:pathData="M59.7,62.5 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M46.3,60.5 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0 Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M63.3,60.5 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0 Z"/>
+    <!-- nose + smile -->
+    <path android:fillColor="#FF7A8A" android:strokeColor="#08303F" android:strokeWidth="1.4"
+        android:pathData="M51.6,69.5 a2.4,1.8 0 1,0 4.8,0 a2.4,1.8 0 1,0 -4.8,0 Z"/>
+    <path android:strokeColor="#08303F" android:strokeWidth="2" android:strokeLineCap="round"
+        android:pathData="M50.5,73 q3.5,3.5 7,0"/>
+    <!-- water line -->
+    <path android:strokeColor="#E8FBFF" android:strokeWidth="2.4" android:strokeLineCap="round"
+        android:pathData="M30,80 q6,-4.5 12,0 t12,0 t12,0 t12,0"/>
+</vector>
