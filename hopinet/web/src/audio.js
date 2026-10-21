@@ -33,7 +33,7 @@ const noop = () => {};
 
 const MUSIC_VOL = 0.62;   // calibrated so that music alone sits around -16 dBFS RMS at the master output
 const SFX_VOL = 0.9;
-const LOOK = 0.3;         // scheduler look-ahead (s)
+const LOOK = 0.45;        // scheduler look-ahead (s): survives main-thread stalls of a few frames
 const TICK_MS = 30;
 
 // ============================================================ DSP baking (offline, in JS)
@@ -260,7 +260,7 @@ const DEFS = {
   harbor: {
     mix: { drums: 0.94, bass: 0.5, harm: 1.07, arp: 3.1, lead: 3.55, perc: 1 },
     key: 0, scale: 'major', bossScale: 'harmMinor', swing: 0.05, trim: 1.04,
-    bpm: { run: 144, lobby: 104, boss: 160, plane: 150 },
+    bpm: { run: 144, lobby: 108, boss: 160, plane: 150 },
     prog: [[0, 'M'], [7, 'M'], [9, 'm'], [5, 'M'], [0, 'M'], [7, 'M'], [5, 'M'], [7, 'M']],
     leadBase: 72,
     lead: ['4--24-576--45-4.', '8--64-568--64...', '5-4.2-4.5-7.6-5.', '7--53-5.7-8-5.7.',
@@ -281,7 +281,7 @@ const DEFS = {
   neon: {
     mix: { drums: 0.92, bass: 0.57, harm: 1.93, arp: 5.6, lead: 4.5, perc: 1 },
     key: 9, scale: 'minor', bossScale: 'harmMinor', swing: 0, trim: 1.01,
-    bpm: { run: 140, lobby: 100, boss: 160, plane: 148 },
+    bpm: { run: 140, lobby: 106, boss: 160, plane: 148 },
     prog: [[0, 'm'], [8, 'M'], [3, 'M'], [10, 'M'], [0, 'm'], [8, 'M'], [10, 'M'], [7, 'M']],
     leadBase: 69,
     lead: ['7--64-.47-9-8-7.', '5--79--75-7-9...', 'b--9a-9.6-7-9...', '8--ab-a.8-6-4...',
@@ -302,7 +302,7 @@ const DEFS = {
   coral: {
     mix: { drums: 1.14, bass: 0.43, harm: 1.23, arp: 0.79, lead: 0.92, perc: 1.26 },
     key: 7, scale: 'mixo', bossScale: 'harmMinor', swing: 0.1, trim: 1.05,
-    bpm: { run: 142, lobby: 104, boss: 160, plane: 148 },
+    bpm: { run: 142, lobby: 108, boss: 160, plane: 148 },
     prog: [[0, '7'], [10, 'M'], [5, 'M'], [0, '7'], [0, '7'], [10, 'M'], [5, 'M'], [10, 'M']],
     leadBase: 67,
     lead: ['4.4.7--54-2-4---', '3.3.6--83-1-3---', '7.7.a--97-5-7---', '4.4.7--54-2-0---',
@@ -327,7 +327,7 @@ const DEFS = {
   jungle: {
     mix: { drums: 0.88, bass: 0.49, harm: 0.97, arp: 0.98, lead: 1.66, perc: 0.96 },
     key: 2, scale: 'minPent', bossScale: 'harmMinor', swing: 0.14, trim: 0.93,
-    bpm: { run: 146, lobby: 104, boss: 160, plane: 150 },
+    bpm: { run: 146, lobby: 108, boss: 160, plane: 150 },
     prog: [[0, '5'], [0, '5'], [3, '5'], [5, '5'], [0, '5'], [10, '5'], [5, '5'], [7, '5']],
     leadBase: 62,
     lead: ['5--67-8-7-6-5---', '8--9a-9-8-7-8...', '9--86-8-9-a-9---', 'a--98-7-8-9-7---',
@@ -353,7 +353,7 @@ const DEFS = {
   frost: {
     mix: { drums: 1.18, bass: 0.37, harm: 1.34, arp: 0.74, lead: 0.82, perc: 1 },
     key: 5, scale: 'lydian', bossScale: 'harmMinor', swing: 0, trim: 1.07,
-    bpm: { run: 140, lobby: 100, boss: 160, plane: 148 },
+    bpm: { run: 140, lobby: 106, boss: 160, plane: 148 },
     prog: [[0, 'M7'], [2, 'M'], [4, 'm7'], [2, 'M'], [0, 'M7'], [2, 'M'], [9, 'm7'], [7, 'M']],
     leadBase: 65,
     lead: ['b--97-9-b-d-c---', 'a--8a-c-d-c-a---', '9--bd--b9-b-d-f-', 'f--dc-a-8-a-c---',
@@ -375,7 +375,7 @@ const DEFS = {
   dunes: {
     mix: { drums: 1.34, bass: 0.43, harm: 1.38, arp: 2.7, lead: 1.8, perc: 3 },
     key: 2, scale: 'hijaz', bossScale: 'hijaz', swing: 0.04, trim: 1.16,
-    bpm: { run: 144, lobby: 104, boss: 160, plane: 150 },
+    bpm: { run: 144, lobby: 108, boss: 160, plane: 150 },
     prog: [[0, 'M'], [1, 'M'], [0, 'M'], [5, 'm'], [0, 'M'], [1, 'M'], [5, 'm'], [7, '5']],
     leadBase: 62,
     lead: ['7--89--ab-a98-7-', '8--ac--ba-8-8...', '9--be--dc-b-9-8-', 'a--ce--ca-9-a---',
@@ -525,6 +525,8 @@ let muffleT = 0, uwT = false;
 let engWant = null, eng = null, jetWant = false, jetNode = null;
 let timer = 0, lastTick = 0, bubbleAt = 0, engAt = 0, coinStreak = 0, lastCoin = 0, warned = false;
 const lastPlay = {};
+let curBus = null, curWet = null;   // per-effect level buses (see SFX_TRIM)
+const sxCache = {};
 const noteCache = new Map();
 
 // ============================================================ graph
@@ -583,7 +585,6 @@ function build(c, isOffline) {
 
   kit = bakeKit(c);
   noteCache.clear();
-  c.onstatechange = () => { if (c.state === 'interrupted' || c.state === 'suspended') { /* resumed by Audio.resume/unlock */ } };
 }
 
 function teardown() {
@@ -614,7 +615,7 @@ function getNote(inst, midi) {
   const key = inst + ':' + midi;
   let e = noteCache.get(key);
   if (e) return e;
-  if (noteCache.size > 280) noteCache.clear();
+  if (noteCache.size > 120) noteCache.clear();
   const sr = ctx.sampleRate, I = INST[inst], f0 = mtof(midi);
   if (I.ks) {
     const k = I.ks, r = bakeKS(sr, f0, k.t60, k.br, k.pick, k.lp, midi * 7 + 3);
@@ -701,8 +702,9 @@ function vRiser(tb, t, dur, v) {
 }
 function duck(tb, t, amt, depthB, depthH) {
   const b = tb.duckB.gain, h = tb.duckH.gain;
-  b.setValueAtTime(1 - depthB * amt, t); b.setTargetAtTime(1, t + 0.02, 0.075);
-  h.setValueAtTime(1 - depthH * amt, t); h.setTargetAtTime(1, t + 0.02, 0.08);
+  // ~3 ms attack (no clicks on a sounding bass), then a pumping release that breathes back in
+  b.setTargetAtTime(1 - depthB * amt, t - 0.003, 0.0022); b.setTargetAtTime(1, t + 0.02, 0.075);
+  h.setTargetAtTime(1 - depthH * amt, t - 0.003, 0.0022); h.setTargetAtTime(1, t + 0.02, 0.08);
 }
 
 // ---- bass
@@ -870,7 +872,7 @@ function newTrack(wid, md0, startAt) {
   const mk = (v) => { const n = c.createGain(); n.gain.value = v; return n; };
   const tb = {
     wid, W, mode: md, bar: 0, s: 0, cyc: 0, bpm: bpmFor(W, md), pend: null,
-    t0: startAt, nextT: startAt, e: 0.3, lv: {}, rng: rngf(4242), nodes: [], age0: startAt, crashNext: true, stepCount: 0,
+    t0: startAt, nextT: startAt, e: 0.3, lv: {}, rng: rngf(4242), nodes: [], age0: startAt, crashNext: true,
   };
   setMat(tb, md);
   tb.out = mk(0.0001);
@@ -965,7 +967,6 @@ function pumpTrack(tb, until) {
     if (tb.nextT < now - 0.02) { advance(tb, spb); continue; }   // fell behind (tab throttled): skip, keep grid
     stepEvents(tb, tb.nextT, spb);
     advance(tb, spb);
-    tb.stepCount++;
   }
 }
 
@@ -1140,7 +1141,7 @@ function nz(dur, o) {
   if (o.to) fl.frequency.exponentialRampToValueAtTime(Math.max(30, o.to), t + dur);
   const gn = c.createGain(), v = o.vol === undefined ? 0.2 : o.vol, a = o.a || 0.004;
   gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(v, t + a); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(fl); fl.connect(gn); gn.connect(o.bus || G.sfx);
+  s.connect(fl); fl.connect(gn); gn.connect(o.bus || curBus);
   s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.03);
 }
 function tn(f, dur, o) {
@@ -1154,7 +1155,7 @@ function tn(f, dur, o) {
   let last = os;
   if (o.lp) { const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = o.lp; last.connect(fl); last = fl; }
   if (o.bp) { const fl = c.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = o.bp; fl.Q.value = 3; last.connect(fl); last = fl; }
-  last.connect(gn); gn.connect(o.bus || G.sfx);
+  last.connect(gn); gn.connect(o.bus || curBus);
   os.start(t); os.stop(t + dur + 0.03);
 }
 function chime(f, o) {
@@ -1163,7 +1164,7 @@ function chime(f, o) {
   const s = c.createBufferSource(); s.buffer = kit.bell; s.playbackRate.value = f / 880;
   const gn = c.createGain(), v = o.vol === undefined ? 0.3 : o.vol;
   gn.gain.setValueAtTime(v, t); gn.gain.setValueAtTime(v, t + dur * 0.5); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(gn); gn.connect(o.bus || G.sfx); s.start(t); s.stop(t + dur + 0.03);
+  s.connect(gn); gn.connect(o.bus || curBus); s.start(t); s.stop(t + dur + 0.03);
 }
 function brass(f, dur, vol, when, bus) {
   tn(f, dur, { type: 'sawtooth', vol, when, a: 0.025, lp: 2400, bus });
@@ -1255,14 +1256,14 @@ const SFX = {
   },
   build() {
     [0, 0.16].forEach((w) => { nz(0.07, { f: 1800, q: 4, vol: 0.24, when: w }); tn(230, 0.09, { to: 120, vol: 0.2, when: w }); });
-    [523.25, 783.99, 1046.5].forEach((f, i) => chime(f, { vol: 0.22, when: 0.32 + i * 0.1, dur: 0.7, bus: G.sfxWet }));
+    [523.25, 783.99, 1046.5].forEach((f, i) => chime(f, { vol: 0.22, when: 0.32 + i * 0.1, dur: 0.7, bus: curWet }));
   },
   reward() {
-    [784, 987.8, 1174.7, 1568].forEach((f, i) => chime(f, { vol: 0.24, when: i * 0.075, dur: 0.8, bus: G.sfxWet }));
+    [784, 987.8, 1174.7, 1568].forEach((f, i) => chime(f, { vol: 0.24, when: i * 0.075, dur: 0.8, bus: curWet }));
     nz(0.5, { type: 'highpass', f: 7000, q: 0.7, vol: 0.04, when: 0.1 });
   },
   fanfare() {
-    const b = G.sfxWet;
+    const b = curWet;
     brass(392, 0.16, 0.07, 0, b); brass(523.25, 0.16, 0.07, 0.14, b); brass(659.25, 0.16, 0.07, 0.28, b);
     [523.25, 659.25, 783.99, 1046.5].forEach((f) => brass(f, 0.9, 0.055, 0.44, b));
     [1046.5, 1318.5, 1568, 2093].forEach((f, i) => chime(f, { vol: 0.14, when: 0.44 + i * 0.06, dur: 1, bus: b }));
@@ -1300,14 +1301,14 @@ const SFX = {
   },
   wave() { nz(1.7, { f: 280, to: 1500, q: 0.6, vol: 0.22, a: 0.8 }); nz(1.5, { type: 'highpass', f: 2500, q: 0.7, vol: 0.05, a: 0.8, when: 0.1 }); },
   finish() {
-    const b = G.sfxWet;
+    const b = curWet;
     [1046.5, 1318.5, 1568, 2093].forEach((f, i) => chime(f, { vol: 0.2, when: i * 0.09, dur: 1, bus: b }));
     brass(523.25, 0.12, 0.06, 0.1, b); brass(659.25, 0.12, 0.06, 0.24, b);
     [523.25, 659.25, 783.99, 1046.5].forEach((f) => brass(f, 1.0, 0.05, 0.4, b));
     nz(1.0, { f: 1800, q: 0.5, vol: 0.09, a: 0.12 });
   },
   star() {
-    [1046.5, 1568, 2093].forEach((f, i) => chime(f, { vol: 0.22, when: i * 0.06, dur: 0.8, bus: G.sfxWet }));
+    [1046.5, 1568, 2093].forEach((f, i) => chime(f, { vol: 0.22, when: i * 0.06, dur: 0.8, bus: curWet }));
     tn(1046, 0.22, { to: 3000, vol: 0.05 });
     nz(0.3, { type: 'highpass', f: 7500, q: 0.7, vol: 0.04, when: 0.1 });
   },
@@ -1319,6 +1320,8 @@ const SFX = {
   },
   hit() { tn(200, 0.13, { to: 68, vol: 0.32 }); nz(0.08, { f: 1400, q: 1, vol: 0.22 }); tn(800, 0.06, { type: 'square', to: 300, vol: 0.05 }); },
 };
+// Per-effect level trims (measured so that key effects peak around -5 dBFS, ambient ones around -14 dBFS)
+const SFX_TRIM = { coin: 1.95, gem: 1.48, jump: 4.3, slide: 6.02, land: 3.16, lane: 18.58, stumble: 4.08, crash: 1.32, powerup: 3.76, shieldBreak: 1.78, kick: 2.13, explode: 1.4, alarm: 5.37, drop: 2.72, laugh: 11.46, click: 2.37, buy: 1.72, build: 1.45, reward: 1.41, fanfare: 2.14, tick: 2.63, error: 5.36, whoosh: 6.23, splash: 2.02, dive: 2.24, swim: 11.46, bubble: 2.85, mount: 1.46, horn: 2.19, cannon: 1.38, wave: 3.09, finish: 1.78, star: 1.58, vacuum: 4.46, pop: 2.07, ring: 1.7, hit: 1.98 };
 const SFX_GAP = { coin: 0.02, tick: 0.03, click: 0.03, lane: 0.05, swim: 0.1, bubble: 0.1 };
 
 // ============================================================ loops: vehicle engines and jet
@@ -1335,40 +1338,51 @@ function makeEngine(kind) {
   const gain = (v) => { const n = c.createGain(); n.gain.value = v; return n; };
   const nzs = () => { const s = nzLoop(); srcs.push(s); return s; };
   const pitch = [];
-  let level = 0.16, upd;
+  let level = 0.17, upd;
   if (kind === 'car') {
-    const a = osc('sawtooth', 62), b = osc('sawtooth', 62.4), sub = osc('sine', 31);
-    const lp = fl('lowpass', 600, 2), amp = gain(0.8), lfo = osc('sine', 18), lg = gain(0.22);
-    a.connect(lp); b.connect(lp); lp.connect(amp); sub.connect(gain(0.5)).connect(amp);
+    // buzzy four-stroke: detuned saws + octave "rasp" through a mid band, cylinder pulsing, road hiss
+    const a = osc('sawtooth', 64), b = osc('sawtooth', 64.6), r = osc('sawtooth', 128), sub = osc('sine', 32);
+    const lp = fl('lowpass', 1100, 2), amp = gain(0.8), lfo = osc('sine', 20), lg = gain(0.3);
+    const rb = fl('bandpass', 760, 1.1), rg = gain(0.55);
+    a.connect(lp); b.connect(lp); lp.connect(amp); r.connect(rb); rb.connect(rg); rg.connect(amp);
+    sub.connect(gain(0.25)).connect(amp);
     lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
-    const rd = nzs(), rb = fl('bandpass', 320, 0.8), rg = gain(0.05); rd.connect(rb); rb.connect(rg); rg.connect(out);
-    pitch.push([a, 62], [b, 62.4], [sub, 31]);
-    upd = (i) => { const k = 1 + 0.9 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.12)); lfo.frequency.setTargetAtTime(18 * k, now, 0.12); lp.frequency.setTargetAtTime(500 + 900 * i, now, 0.15); };
+    const rd = nzs(), rbp = fl('bandpass', 1000, 0.7), rgn = gain(0.07); rd.connect(rbp); rbp.connect(rgn); rgn.connect(out);
+    pitch.push([a, 64], [b, 64.6], [r, 128], [sub, 32]);
+    upd = (i) => { const k = 1 + 0.9 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.12)); lfo.frequency.setTargetAtTime(20 * k, now, 0.12); lp.frequency.setTargetAtTime(1000 + 1500 * i, now, 0.15); rb.frequency.setTargetAtTime(700 + 600 * i, now, 0.15); };
   } else if (kind === 'boat') {
+    // outboard: raspy mid saw, burbling exhaust, churning water
     level = 0.17;
-    const a = osc('sawtooth', 48), sub = osc('sine', 48), lp = fl('lowpass', 280, 3), amp = gain(0.7), lfo = osc('sine', 10), lg = gain(0.3);
-    a.connect(lp); lp.connect(amp); sub.connect(gain(0.4)).connect(amp); lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
-    const w = nzs(), wl = fl('lowpass', 1000, 0.5), wg = gain(0.1), lf2 = osc('sine', 0.45), lg2 = gain(0.04);
+    const a = osc('sawtooth', 52), h = osc('sawtooth', 104), sub = osc('sine', 52);
+    const lp = fl('lowpass', 650, 3), hb = fl('bandpass', 620, 1.3), hg = gain(0.95);
+    const amp = gain(0.75), lfo = osc('sine', 11), lg = gain(0.32);
+    a.connect(lp); lp.connect(amp); h.connect(hb); hb.connect(hg); hg.connect(amp); sub.connect(gain(0.3)).connect(amp);
+    lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
+    const w = nzs(), wl = fl('lowpass', 1500, 0.5), wg = gain(0.13), lf2 = osc('sine', 0.45), lg2 = gain(0.04);
     w.connect(wl); wl.connect(wg); wg.connect(out); lf2.connect(lg2); lg2.connect(wg.gain);
-    const bw = nzs(), bb = fl('bandpass', 520, 1.5), bg = gain(0.05); bw.connect(bb); bb.connect(bg); bg.connect(out);
-    pitch.push([a, 48], [sub, 48]);
-    upd = (i) => { const k = 1 + 0.7 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.12)); lfo.frequency.setTargetAtTime(10 * k, now, 0.12); wl.frequency.setTargetAtTime(800 + 1600 * i, now, 0.2); };
+    const bw = nzs(), bb = fl('bandpass', 900, 1.5), bg = gain(0.07); bw.connect(bb); bb.connect(bg); bg.connect(out);
+    pitch.push([a, 52], [h, 104], [sub, 52]);
+    upd = (i) => { const k = 1 + 0.7 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.12)); lfo.frequency.setTargetAtTime(11 * k, now, 0.12); wl.frequency.setTargetAtTime(1200 + 1800 * i, now, 0.2); };
   } else if (kind === 'ship') {
+    // big diesel: slow thump with a mid growl and a wide wash
     level = 0.17;
-    const a = osc('sawtooth', 38), sub = osc('sine', 38), lp = fl('lowpass', 170, 2), amp = gain(0.7), lfo = osc('sine', 3.2), lg = gain(0.35);
-    a.connect(lp); lp.connect(amp); sub.connect(gain(0.6)).connect(amp); lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
-    const w = nzs(), wl = fl('lowpass', 700, 0.5), wg = gain(0.1), lf2 = osc('sine', 0.3), lg2 = gain(0.05);
+    const a = osc('sawtooth', 40), h = osc('sawtooth', 80), sub = osc('sine', 40);
+    const lp = fl('lowpass', 520, 2), hb = fl('bandpass', 460, 1), hg = gain(1.05);
+    const amp = gain(0.75), lfo = osc('sine', 3.4), lg = gain(0.38);
+    a.connect(lp); lp.connect(amp); h.connect(hb); hb.connect(hg); hg.connect(amp); sub.connect(gain(0.4)).connect(amp); lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
+    const w = nzs(), wl = fl('lowpass', 1100, 0.5), wg = gain(0.12), lf2 = osc('sine', 0.3), lg2 = gain(0.05);
     w.connect(wl); wl.connect(wg); wg.connect(out); lf2.connect(lg2); lg2.connect(wg.gain);
-    pitch.push([a, 38], [sub, 38]);
-    upd = (i) => { const k = 1 + 0.5 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.2)); lfo.frequency.setTargetAtTime(3.2 * k, now, 0.2); };
-  } else { // plane
-    level = 0.15;
-    const a = osc('sawtooth', 86), b = osc('sawtooth', 87.6), lp = fl('lowpass', 950, 1.5), amp = gain(0.7), lfo = osc('sine', 26), lg = gain(0.45);
-    a.connect(lp); b.connect(lp); lp.connect(amp); lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
-    const w = nzs(), wb = fl('bandpass', 750, 0.6), wg = gain(0.1), lf2 = osc('sine', 0.3), lg2 = gain(0.04);
+    pitch.push([a, 40], [h, 80], [sub, 40]);
+    upd = (i) => { const k = 1 + 0.5 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.2)); lfo.frequency.setTargetAtTime(3.4 * k, now, 0.2); };
+  } else { // plane: twin-blade prop buzz with harmonics + wind
+    level = 0.17;
+    const a = osc('sawtooth', 92), b = osc('sawtooth', 93.8), c3 = osc('square', 184), lp = fl('lowpass', 2000, 1.5), amp = gain(0.7), lfo = osc('sine', 28), lg = gain(0.45);
+    const c3g = gain(0.25);
+    a.connect(lp); b.connect(lp); c3.connect(c3g); c3g.connect(lp); lp.connect(amp); lfo.connect(lg); lg.connect(amp.gain); amp.connect(out);
+    const w = nzs(), wb = fl('bandpass', 1100, 0.6), wg = gain(0.12), lf2 = osc('sine', 0.3), lg2 = gain(0.04);
     w.connect(wb); wb.connect(wg); wg.connect(out); lf2.connect(lg2); lg2.connect(wg.gain);
-    pitch.push([a, 86], [b, 87.6]);
-    upd = (i) => { const k = 1 + 0.45 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.15)); lfo.frequency.setTargetAtTime(26 * k, now, 0.15); wb.frequency.setTargetAtTime(650 + 900 * i, now, 0.2); };
+    pitch.push([a, 92], [b, 93.8], [c3, 184]);
+    upd = (i) => { const k = 1 + 0.45 * i, now = c.currentTime; pitch.forEach(([o, f]) => o.frequency.setTargetAtTime(f * k, now, 0.15)); lfo.frequency.setTargetAtTime(28 * k, now, 0.15); wb.frequency.setTargetAtTime(1000 + 1000 * i, now, 0.2); };
   }
   const t = c.currentTime;
   srcs.forEach((s) => { if (s.buffer) s.start(t, Math.random() * 1.5); else s.start(t); });
@@ -1389,19 +1403,19 @@ function makeJet() {
   out.gain.value = 0.0001; out.connect(G.sfx);
   const srcs = [];
   const n1 = nzLoop(), n2 = nzLoop(), n3 = nzLoop(); srcs.push(n1, n2, n3);
-  const roar = c.createBiquadFilter(); roar.type = 'bandpass'; roar.frequency.value = 1100; roar.Q.value = 0.5;
-  const rum = c.createBiquadFilter(); rum.type = 'lowpass'; rum.frequency.value = 260; rum.Q.value = 0.7;
-  const siz = c.createBiquadFilter(); siz.type = 'highpass'; siz.frequency.value = 3500;
-  const g1 = c.createGain(); g1.gain.value = 0.5; const g2 = c.createGain(); g2.gain.value = 1.2; const g3 = c.createGain(); g3.gain.value = 0.12;
+  const roar = c.createBiquadFilter(); roar.type = 'bandpass'; roar.frequency.value = 1300; roar.Q.value = 0.6;
+  const rum = c.createBiquadFilter(); rum.type = 'lowpass'; rum.frequency.value = 420; rum.Q.value = 0.7;
+  const siz = c.createBiquadFilter(); siz.type = 'highpass'; siz.frequency.value = 3200;
+  const g1 = c.createGain(); g1.gain.value = 1.3; const g2 = c.createGain(); g2.gain.value = 1.4; const g3 = c.createGain(); g3.gain.value = 0.18;
   n1.connect(roar); roar.connect(g1); g1.connect(out);
   n2.connect(rum); rum.connect(g2); g2.connect(out);
   n3.connect(siz); siz.connect(g3); g3.connect(out);
   const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 31; srcs.push(lfo);
-  const lg = c.createGain(); lg.gain.value = 0.3; lfo.connect(lg); lg.connect(g2.gain);
+  const lg = c.createGain(); lg.gain.value = 0.35; lfo.connect(lg); lg.connect(g2.gain);
   const lf2 = c.createOscillator(); lf2.frequency.value = 0.6; srcs.push(lf2);
   const lg2 = c.createGain(); lg2.gain.value = 500; lf2.connect(lg2); lg2.connect(roar.frequency);
   srcs.forEach((s) => { if (s.buffer) s.start(t, Math.random() * 1.5); else s.start(t); });
-  out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.18, t + 0.3);
+  out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.3, t + 0.3);
   return {
     stop() {
       const n = c.currentTime;
@@ -1429,16 +1443,16 @@ function killLoops(hard) {
 }
 
 // ============================================================ filters (helmet muffle, underwater)
-function muffleFreq(x) { return 19000 * Math.pow(700 / 19000, Math.pow(clamp(x, 0, 1), 0.75)); }
+function muffleFreq(x) { return 19000 * Math.pow(650 / 19000, Math.pow(clamp(x, 0, 1), 0.62)); }
 function applyMuffle() {
   if (!ctx || !G) return;
   const now = ctx.currentTime, x = muffleT, tc = 0.09;
   const det = -1200 * Math.log2(19000 / muffleFreq(x));
   G.lp1.detune.setTargetAtTime(det, now, tc); G.lp2.detune.setTargetAtTime(det, now, tc);
-  G.lp1.Q.setTargetAtTime(0.7 + 0.45 * x, now, tc); G.lp2.Q.setTargetAtTime(0.7 + 0.2 * x, now, tc);
+  G.lp1.Q.setTargetAtTime(0.7 + 0.25 * x, now, tc); G.lp2.Q.setTargetAtTime(0.7 + 0.1 * x, now, tc);
   G.muffGain.gain.setTargetAtTime(1 - 0.42 * x, now, tc + 0.02);   // volume dip
-  G.distWet.gain.setTargetAtTime(0.35 * x, now, tc + 0.02);        // slight distortion
-  G.combWet.gain.setTargetAtTime(0.2 * x, now, tc + 0.02);         // hollow "inside a helmet" resonance
+  G.distWet.gain.setTargetAtTime(0.3 * x * x, now, tc + 0.02);     // slight distortion
+  G.combWet.gain.setTargetAtTime(0.22 * x * x, now, tc + 0.02);    // hollow "inside a helmet" resonance
 }
 function applyUnderwater() {
   if (!ctx || !G) return;
@@ -1482,6 +1496,16 @@ function setMusic(on) {
   musicOn = !!on;
   if (G) G.musicVol.gain.setTargetAtTime(musicOn ? MUSIC_VOL : 0, ctx.currentTime, 0.05);
 }
+function useSx(name) {
+  const tr0 = SFX_TRIM[name] || 1;
+  let sx = sxCache[name];
+  if (!sx || sx.c !== ctx) {
+    const a = ctx.createGain(); a.gain.value = tr0; a.connect(G.sfx);
+    const b = ctx.createGain(); b.gain.value = tr0; b.connect(G.sfxWet);
+    sx = sxCache[name] = { c: ctx, a, b };
+  }
+  curBus = sx.a; curWet = sx.b;
+}
 function play(name) {
   if (!ctx || !sfxOn || ctx.state !== 'running') return;
   const f = SFX[name];
@@ -1489,6 +1513,7 @@ function play(name) {
   const now = performance.now(), gap = (SFX_GAP[name] || 0.012) * 1000;
   if (lastPlay[name] && now - lastPlay[name] < gap) return;
   lastPlay[name] = now;
+  useSx(name);
   try { f(); } catch (e) { if (!warned) { warned = true; if (typeof console !== 'undefined') console.warn('[audio] sfx', name, e); } }
 }
 function engine(kind) {
@@ -1512,13 +1537,15 @@ function startMusic(m, opts) {
   // different world or arrangement: crossfade into a fresh track (immediate, with a crash on the first beat)
   const now = ctx.currentTime;
   if (tr) disposeTrack(tr, 0.35);
+  if (!tr || tr.wid !== wid) noteCache.clear();   // keep memory bounded: only the current world's samples stay baked
+  if (md === 'run') iT = iC = Math.min(iT, 0.25);   // a fresh run always builds up from the bottom layers
   tr = newTrack(wid, m, now + 0.12);
   lastTick = now;
 }
 function setMode(m) {
-  mode = m;
-  if (!ctx) { pend = { mode: m, world: lastWorld }; return; }
+  if (!ctx) { mode = m; pend = { mode: m, world: lastWorld }; return; }
   if (!tr || tr.dead) return;
+  mode = m;
   const md = normMode(m);
   if (md === tr.mode) { tr.pend = null; return; }
   if (tr.pend === md) return;
@@ -1558,7 +1585,7 @@ export const Audio = {
 Object.defineProperty(Audio, '_internal', {
   enumerable: false,
   value: {
-    DEFS, BOSS, SC, build, startMusic, setMode, play, SFX, getTrack: () => tr, G: () => G, kit: () => kit,
+    DEFS, BOSS, SC, build, startMusic, setMode, play, SFX, SFX_TRIM, playRaw(n) { useSx(n); SFX[n](); }, getTrack: () => tr, G: () => G, kit: () => kit,
     attach(c) { muffleT = 0; uwT = false; iT = iC = 0.2; engWant = null; jetWant = false; pend = null; build(c, true); applyMuffle(); applyUnderwater(); },
     // schedule music up to `sec` of context time in one go (offline rendering)
     pump(sec) { if (!tr) return; pumpTrack(tr, sec); },

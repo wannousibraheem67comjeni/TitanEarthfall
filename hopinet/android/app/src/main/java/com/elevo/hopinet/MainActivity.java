@@ -52,7 +52,7 @@ public final class MainActivity extends ComponentActivity {
     private String pendingGeoOrigin;
     private volatile int insetTop, insetBottom;
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "InvalidFragmentVersionForActivityResult"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

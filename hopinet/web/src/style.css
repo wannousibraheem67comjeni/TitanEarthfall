@@ -56,9 +56,9 @@ canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .logo { display: inline-flex; align-items: center; gap: 6px; font-size: clamp(20px, 5.4vw, 30px); font-weight: 800; color: var(--gold); text-shadow: 0 2px 0 #7a4200, 2px 0 0 #7a4200, -2px 0 0 #7a4200, 0 -2px 0 #7a4200, 0 5px 0 rgba(0,0,0,.25); }
 .logo .i { width: 1.5em; height: 1.5em; }
 .stats-row { display: flex; gap: 6px; justify-content: center; margin-top: 2px; }
-.chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(8,48,63,.7); border-radius: 14px; padding: 1px 10px; font-weight: 800; font-size: 14px; border: 2px solid rgba(255,255,255,.2); }
+.chip { display: inline-flex; align-items: center; gap: 3px; background: rgba(8,48,63,.7); border-radius: 14px; padding: 0 8px; font-weight: 800; font-size: 13px; border: 2px solid rgba(255,255,255,.2); }
 .chip.mult { background: linear-gradient(#b07bff, var(--purple2)); }
-.side { position: absolute; top: calc(var(--safe-top) + 120px); display: flex; flex-direction: column; gap: 10px; }
+.side { position: absolute; top: calc(var(--safe-top) + 138px); display: flex; flex-direction: column; gap: 10px; }
 .side.start { inset-inline-start: 8px; }
 .side.end { inset-inline-end: 8px; }
 .side-btn { position: relative; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 0; transition: transform .1s; }

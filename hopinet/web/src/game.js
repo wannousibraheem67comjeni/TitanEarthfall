@@ -9,7 +9,7 @@ import { Basic, sparkTex, makeBomb } from './models.js';
 import { makeCritter, animateCritter, makeVillain, animateVillain } from './critter.js';
 import { makeVehicle, animateVehicle, makeBossAirship, animateBossAirship } from './vehicles.js';
 import { makeBackdrop, setWaterTime } from './backdrop.js';
-import { makeHome, setHomeStage, setHomeItems, updateHome } from './house.js';
+import { makeHome, setHomeStage, setHomeItems, updateHome, disposeHome } from './house.js';
 import { Track } from './track.js';
 import { Audio } from './audio.js';
 
@@ -165,7 +165,7 @@ export class Game {
     this.world = world;
     if (this.track) this.track.dispose();
     this.track = new Track(this.scene, world, { quality: this.quality });
-    if (this.backdrop) this.scene.remove(this.backdrop);
+    if (this.backdrop) { this.scene.remove(this.backdrop); if (this.backdrop.userData.dispose) { try { this.backdrop.userData.dispose(); } catch (e) { /* ignore */ } } }
     this.backdrop = makeBackdrop(world, { quality: this.quality });
     this.scene.add(this.backdrop);
     this._applyWorldLighting(this.scene, world, this.hemi, this.sun);
@@ -197,6 +197,8 @@ export class Game {
     const L = this.lobby;
     if (this.lobbyWorld !== world) {
       this.lobbyWorld = world;
+      if (this.home) { try { disposeHome(this.home); } catch (e) { /* ignore */ } this.home = null; }
+      if (this.lobbyBackdrop && this.lobbyBackdrop.userData.dispose) { try { this.lobbyBackdrop.userData.dispose(); } catch (e) { /* ignore */ } }
       while (L.children.length) L.remove(L.children[0]);
       this.lobbyHemi = new THREE.HemisphereLight(0xffffff, 0x88aa66, 1);
       this.lobbySun = new THREE.DirectionalLight(0xffffff, 1.3);
@@ -436,7 +438,7 @@ export class Game {
       dist = Math.max(R * 1.25, fit(R * 1.9)); height = R * 0.5;
       look = new THREE.Vector3(0, 2.4, 0); center = new THREE.Vector3(0, 0, 0);
     } else {
-      dist = Math.max(R * 1.15, fit(R * 1.55)); height = R * 0.42;
+      dist = Math.max(R * 1.15, fit(R * 2.0)); height = R * 0.42;
       look = new THREE.Vector3(0, portrait ? 1.9 : 2.6, 0); center = new THREE.Vector3(0, 0, 0);
     }
     const sheet = this.view === 'char' || this.view === 'house';

@@ -148,7 +148,9 @@ class Mesher {
   }
 
   // ---- shapes (all base-anchored unless noted) ----
-  box(x, y, z, w, h, d, c, o) { this.put(P_BOX(), x, y, z, w, h, d, c, o); }
+  // box: (x, z) = minimum corner, y = bottom.  cbox: (x, z) = centre, y = bottom.
+  box(x, y, z, w, h, d, c, o) { this.put(P_BOX(), x + w / 2, y, z + d / 2, w, h, d, c, o); }
+  cbox(x, y, z, w, h, d, c, o) { this.put(P_BOX(), x, y, z, w, h, d, c, o); }
   quad(x, y, z, w, h, c, o) { this.put(P_QUAD(), x, y, z, w, h, 1, c, o); }
   flat(x, y, z, w, d, c, o) { this.put(P_FLAT(), x, y, z, w, 1, d, c, o); }
   cyl(x, y, z, rb, rt, h, c, o) {
@@ -261,7 +263,7 @@ class Mesher {
 
 // Global brightness gain for lit vertex colours (compensates the 1/pi Lambert response of r170).
 let GAIN = 1.0;
-const WGAIN = { harbor: 1.0, neon: 1.0, coral: 1.03, jungle: 1.1, frost: 1.0, dunes: 1.2 };
+const WGAIN = { harbor: 1.15, neon: 1.1, coral: 1.12, jungle: 1.15, frost: 1.08, dunes: 1.2 };
 const FAC_CW = 1.5, FAC_CH = 1.7, FAC_N = 8;
 
 const BUCKETS = ['lit', 'lit2', 'glow', 'halo', 'fac', 'sig', 'shd'];
@@ -506,7 +508,7 @@ function roadAtlas(world) {
     g.fillStyle = css(R); g.fillRect(rL, 0, rW, H);
     if (id === 'neon') {
       const gr = g.createLinearGradient(rL, 0, rR, 0);
-      gr.addColorStop(0, css(0x1a1a34)); gr.addColorStop(0.5, css(0x34345a)); gr.addColorStop(1, css(0x1a1a34));
+      gr.addColorStop(0, css(0x22223f)); gr.addColorStop(0.5, css(0x3c3c66)); gr.addColorStop(1, css(0x22223f));
       g.fillStyle = gr; g.fillRect(rL, 0, rW, H);
       for (const lx of laneX) band(g, X(lx - 1.0), X(lx + 1.0), H, 0x7b61ff, 0.10, 0.5);
     }
@@ -884,16 +886,17 @@ function shoreBase(world, ax) {
 function hillH(world, ax, z) {
   const id = world.id, u = TAU * z / TILE;
   if (id === 'dunes') {
-    const a1 = smooth(13, 30, ax) * 3.4, a2 = smooth(20, 44, ax) * 3.2;
-    return a1 * (0.5 + 0.5 * Math.cos(u)) + a2 * (0.5 + 0.5 * Math.cos(2 * u + 0.0) * Math.cos(ax * 0.07)) + smooth(13, 20, ax) * 0.25 * Math.cos(3 * u) * Math.cos(ax * 0.3);
+    const fade = 1 - smooth(30, 42.4, ax);
+    const a1 = smooth(13, 28, ax) * 5.0, a2 = smooth(18, 40, ax) * 4.6;
+    return fade * (a1 * (0.5 + 0.5 * Math.cos(u)) + a2 * (0.5 + 0.5 * Math.cos(2 * u + 0.0) * Math.cos(ax * 0.07)) + smooth(13, 20, ax) * 0.25 * Math.cos(3 * u) * Math.cos(ax * 0.3));
   }
   if (id === 'jungle') {
-    const a = smooth(15, 26, ax);
-    return a * (1.5 + 1.1 * Math.cos(u) + 0.7 * Math.cos(2 * u) * Math.cos(ax * 0.2)) * (1 - smooth(23, 26, ax) * 0.6);
+    const a = smooth(14, 19, ax);
+    return a * (1.5 + 1.1 * Math.cos(u) + 0.7 * Math.cos(2 * u) * Math.cos(ax * 0.2)) * (1 - smooth(19.5, 22.4, ax));
   }
   if (id === 'frost') {
-    const a = smooth(12, 19, ax);
-    return a * (0.55 + 0.45 * Math.cos(u)) * 1.1 * (1 - smooth(19.5, 22, ax));
+    const a = smooth(12, 16, ax);
+    return a * (0.55 + 0.45 * Math.cos(u)) * 1.1 * (1 - smooth(16.5, 19.6, ax));
   }
   return 0;
 }
@@ -1120,6 +1123,7 @@ function foamMaterial() {
 }
 
 export function makeGroundTile(world, len, kind) {
+  if (!LP[world && world.id]) world = Object.assign({}, world || {}, { id: 'harbor' });
   GAIN = WGAIN[world.id] || 1;
   const key = world.id + '|' + len + '|' + kind;
   let parts = groundCache.get(key);
@@ -1374,7 +1378,7 @@ function streetDecor(world, K, len, hasGap) {
         K.lit.cyl(X(5.95), 0.2, z, 0.08, 0.06, 4.9, 0x3b4658, { seg: 8 });
         K.lit.tube([[X(5.95), 5.0, z], [X(5.9), 5.35, z], [X(5.2), 5.55, z], [X(4.6), 5.4, z]], 0.045, 0x3b4658, { segs: 7, rad: 4 });
         K.lit.rbox(X(4.55), 5.2, z, 0.62, 0.14, 0.26, 0.05, 0xdfe6ee);
-        K.glow.box(X(4.55), 5.16, z, 0.5, 0.05, 0.2, 0xfff3c4);
+        K.glow.cbox(X(4.55), 5.16, z, 0.5, 0.05, 0.2, 0xfff3c4);
         K.halo_(X(4.55), 5.1, z, 0.8, 0xfff0b0, 0.14);
         K.shadow(X(5.95), z, 0.5, 0.5, 0.35);
       }
@@ -1389,11 +1393,11 @@ function streetDecor(world, K, len, hasGap) {
         if (inGap(z, 2.5)) continue;
         K.push(X(7.9), 0, z, face + (s < 0 ? PI : 0) * 0, 1);
         K.lit.rbox(0, 0.42, 0, 1.7, 0.09, 0.5, 0.03, 0x9a6a3a); K.lit.rbox(0, 0.78, -0.2, 1.7, 0.4, 0.07, 0.03, 0x9a6a3a);
-        for (const bx of [-0.75, 0.75]) K.lit.box(bx, 0, 0, 0.08, 0.45, 0.46, 0x2c3440);
+        for (const bx of [-0.75, 0.75]) K.lit.cbox(bx, 0, 0, 0.08, 0.45, 0.46, 0x2c3440);
         K.pop();
       }
       // curb between the stone apron and the grass
-      K.lit.box(X(9.4), 0, -len / 2, 0.16, 0.1, len, 0xeee8da, { ao: 0.0, g: [1, 1] });
+      K.lit.cbox(X(9.4), 0, -len / 2, 0.16, 0.1, len, 0xeee8da, { ao: 0.0, g: [1, 1] });
     } else if (id === 'neon') {
       for (const z of [-7.5, -22.5]) {
         K.lit.cyl(X(5.95), 0, z, 0.2, 0.2, 0.2, 0x181433, { seg: 8 });
@@ -1413,7 +1417,7 @@ function streetDecor(world, K, len, hasGap) {
       for (let k = 0; k < 4; k++) {
         const z = -3.75 - k * 7.5; if (inGap(z, 2.5)) continue;
         K.lit.rbox(X(7.0), 0, z, 1.1, 0.5, 4.6, 0.12, 0x241d4a, { top: 0x3a2f78 });
-        K.glow.box(X(7.0), 0.5, z, 0.7, 0.04, 4.1, k % 2 ? 0xff3df2 : 0x39f3ff);
+        K.glow.cbox(X(7.0), 0.5, z, 0.7, 0.04, 4.1, k % 2 ? 0xff3df2 : 0x39f3ff);
         K.halo_(X(7.0), 0.55, z, 2.0, k % 2 ? 0xff3df2 : 0x39f3ff, 0.18);
         for (let f = 0; f < 3; f++) K.glow.sph(X(7.0), 0.75, z + (f - 1) * 1.3, 0.14, pick(K.rng, [0x3dff9a, 0xffe14d, 0xff3df2]), { seg: 6 });
       }
@@ -1498,9 +1502,9 @@ function streetDecor(world, K, len, hasGap) {
       }
       for (let k = 0; k < 4; k++) {
         const z = -3.75 - k * 7.5; if (inGap(z, 2)) continue;
-        K.lit.box(X(6.7), 0, z, 0.55, 0.62, 3.6, 0xe6bf80, { top: 0xf2d29a, ao: 0.5 });
-        K.lit.box(X(6.7), 0.62, z, 0.7, 0.1, 3.8, 0xf2d29a);
-        for (let c = 0; c < 4; c++) K.lit.box(X(6.7), 0.72, z + (c - 1.5) * 0.9, 0.5, 0.16, 0.4, 0xe6bf80, { top: 0xf2d29a });
+        K.lit.cbox(X(6.7), 0, z, 0.55, 0.62, 3.6, 0xe6bf80, { top: 0xf2d29a, ao: 0.5 });
+        K.lit.cbox(X(6.7), 0.62, z, 0.7, 0.1, 3.8, 0xf2d29a);
+        for (let c = 0; c < 4; c++) K.lit.cbox(X(6.7), 0.72, z + (c - 1.5) * 0.9, 0.5, 0.16, 0.4, 0xe6bf80, { top: 0xf2d29a });
         K.shadow(X(6.7), z, 0.6, 2.0, 0.28);
       }
       for (let k = 0; k < 2; k++) {
@@ -1536,33 +1540,30 @@ function gapEdges(world, K, len) {
     const zE = end === 0 ? z0 : z1, dir = end === 0 ? -1 : 1;        // dir = towards the gap
     const zin = (d) => zE - dir * d;                                   // d metres inside the road
     // cross-section slabs (road + pavements) going down below the sea level
-    K.lit.box(0, -1.45, zin(0.35), 8.6, 1.22, 0.7, core, { top: core, g: [0.45, 1.0], ao: 0 });
-    K.lit.box(0, -0.23, zin(0.36), 8.6, 0.2, 0.72, deckTop, { g: [0.9, 1.05], ao: 0 });
+    K.lit.cbox(0, -1.45, zin(0.35), 8.6, 1.22, 0.7, core, { top: core, g: [0.45, 1.0], ao: 0 });
+    K.lit.cbox(0, -0.23, zin(0.36), 8.6, 0.2, 0.72, deckTop, { g: [0.9, 1.05], ao: 0 });
     for (const s of [-1, 1]) {
-      K.lit.box(s * 5.0, -1.45, zin(0.35), 1.4, 1.57, 0.7, core, { g: [0.45, 1.0], ao: 0 });
-      K.lit.box(s * 5.0, -0.02, zin(0.36), 1.4, 0.15, 0.72, pave, { g: [0.9, 1.05], ao: 0 });
+      K.lit.cbox(s * 5.0, -1.45, zin(0.35), 1.4, 1.57, 0.7, core, { g: [0.45, 1.0], ao: 0 });
+      K.lit.cbox(s * 5.0, -0.02, zin(0.36), 1.4, 0.15, 0.72, pave, { g: [0.9, 1.05], ao: 0 });
     }
     // ragged teeth of the broken deck
     const nT = wood ? 9 : 7;
     for (let t = 0; t < nT; t++) {
-      const x = -4.1 + (t + 0.5) * (8.2 / nT) + (rng() - 0.5) * 0.3, w = (8.2 / nT) * (0.7 + rng() * 0.45), ext = 0.12 + rng() * (wood ? 1.1 : 0.7), th = 0.16 + rng() * 0.22;
-      const droop = (rng() * 0.35) * (wood ? 1.4 : 1);
-      K.push(x, -0.03, zE + dir * 0.02, 0, 1, dir * droop * -1 * 0);
-      const lenZ = ext + 0.15;
-      K.lit.box(0, -th, -dir * 0 + dir * lenZ / 2 - dir * 0.15, w, th, lenZ, deckTop, { g: [0.8, 1.05], ao: 0, rx: dir * droop * 0.5 });
-      if (!wood && rng() < 0.7) K.lit.box(0, -th - 0.28, dir * (lenZ / 2 - 0.15) * 0.8, w * 0.9, 0.3, lenZ * 0.8, core, { g: [0.6, 1.0], ao: 0, rx: dir * droop * 0.4 });
-      K.pop();
+      const x = -4.1 + (t + 0.5) * (8.2 / nT) + (rng() - 0.5) * 0.3, w = (8.2 / nT) * (0.7 + rng() * 0.45);
+      const ext = 0.2 + rng() * (wood ? 1.2 : 1.0), th = 0.18 + rng() * 0.25, droop = rng() * 0.5, lenZ = ext + 0.2;
+      K.lit.cbox(x, -th - 0.03, zE + dir * (ext / 2 - 0.1), w, th, lenZ, deckTop, { g: [0.8, 1.05], ao: 0, rx: dir * droop * 0.35 });
+      if (!wood && rng() < 0.7) K.lit.cbox(x, -th - 0.32, zE + dir * (ext * 0.35 - 0.1), w * 0.9, 0.3, lenZ * 0.7, core, { g: [0.6, 1.0], ao: 0, rx: dir * droop * 0.3 });
     }
     if (wood) {
       // joists + splintered planks hanging
       for (let b = 0; b < 4; b++) {
         const x = -3.6 + b * 2.4, ext = 0.3 + rng() * 1.3;
-        K.lit.box(x, -0.62, zE + dir * (ext / 2 - 0.5) , 0.28, 0.4, ext + 1.0, 0x4a3320, { rx: dir * rng() * 0.12 });
+        K.lit.cbox(x, -0.62, zE + dir * (ext / 2 - 0.5) , 0.28, 0.4, ext + 1.0, 0x4a3320, { rx: dir * rng() * 0.12 });
       }
       for (let p = 0; p < 6; p++) {
         const x = rr(rng, -3.9, 3.9), l = 0.5 + rng() * 0.9, ang = 0.7 + rng() * 0.8;
         K.push(x, -0.03, zE, 0, 1);
-        K.lit.box(0, -l * Math.cos(ang), dir * l * Math.sin(ang), 0.28, 0.05, l, deckTop, { rx: dir * -ang, g: [0.8, 1.0], ao: 0, top: 0xe8c98a });
+        K.lit.cbox(0, -l * Math.cos(ang), dir * l * Math.sin(ang), 0.28, 0.05, l, deckTop, { rx: dir * -ang, g: [0.8, 1.0], ao: 0, top: 0xe8c98a });
         K.pop();
       }
     } else {
@@ -1581,7 +1582,7 @@ function gapEdges(world, K, len) {
     // hazard stripes painted on the road in front of the edge
     for (let i = 0; i < 14; i++) {
       const x = -4.0 + i * 0.6 + 0.3;
-      K.lit.box(x, 0, zin(0.9), 0.3, 0.025, 0.5, i % 2 ? 0x1b1b1b : 0xffc21a, { ao: 0, g: [1, 1], rz: 0, ry: 0 });
+      K.lit.cbox(x, 0, zin(0.9), 0.3, 0.025, 0.5, i % 2 ? 0x1b1b1b : 0xffc21a, { ao: 0, g: [1, 1], rz: 0, ry: 0 });
     }
     // striped cones + flashing lamp on the pavement
     for (const s of [-1, 1]) {
@@ -1608,9 +1609,9 @@ function gapEdges(world, K, len) {
     const wallCol = id === 'neon' ? 0x2c2552 : id === 'frost' ? 0xb5d4ee : id === 'dunes' ? 0xd8a864 : id === 'jungle' ? 0x6b6a5a : id === 'coral' ? 0xd9c08a : 0x9a9484;
     for (let c = 0; c < 4; c++) {
       const y = -1.45 + c * 0.36;
-      K.lit.box(s * 5.84, y, (z0 + z1) / 2, 0.3 + (c % 2) * 0.04, 0.36, Math.abs(z1 - z0), mixHex(wallCol, 0x335a5a, clamp01((0.6 - c * 0.2))), { g: [0.8, 1.04], ao: 0, top: wallCol });
+      K.lit.cbox(s * 5.84, y, (z0 + z1) / 2, 0.3 + (c % 2) * 0.04, 0.36, Math.abs(z1 - z0), mixHex(wallCol, 0x335a5a, clamp01((0.6 - c * 0.2))), { g: [0.8, 1.04], ao: 0, top: wallCol });
     }
-    K.lit.box(s * 5.84, -0.02, (z0 + z1) / 2, 0.3, 0.04, Math.abs(z1 - z0), wallCol, { ao: 0 });
+    K.lit.cbox(s * 5.84, -0.02, (z0 + z1) / 2, 0.3, 0.04, Math.abs(z1 - z0), wallCol, { ao: 0 });
   }
 }
 
@@ -1626,10 +1627,10 @@ function hbContainer(world, ci) {
     const rib = shadeHex(col, 0.78);
     for (let i = 0; i < 7; i++) {
       const px = -w / 2 + 0.4 + i * ((w - 0.8) / 6);
-      for (const sz of [-1, 1]) K.lit.box(px - 0.07, 0.12, sz * (d / 2 + 0.012), 0.14, h - 0.3, 0.04, rib, { ao: 0.2, g: [0.9, 1] });
+      for (const sz of [-1, 1]) K.lit.cbox(px, 0.12, sz * (d / 2 + 0.012), 0.14, h - 0.3, 0.04, rib, { ao: 0.2, g: [0.9, 1] });
     }
     for (const e of [-1, 1]) {
-      K.lit.box(e * (w / 2 + 0.012), 0.12, 0, 0.04, h - 0.3, d - 0.3, shadeHex(col, 0.9), { ao: 0.2 });
+      K.lit.cbox(e * (w / 2 + 0.012), 0.12, 0, 0.04, h - 0.3, d - 0.3, shadeHex(col, 0.9), { ao: 0.2 });
       for (const bz of [-0.35, 0.35]) K.lit.box(e * (w / 2 + 0.05) - 0.02, 0.25, bz - 0.02, 0.04, h - 0.6, 0.04, 0xc4ccd4, { ao: 0.1, g: [1, 1] });
     }
   });
@@ -1648,10 +1649,10 @@ const hbWoodCrate = (K, x, y, z, s, yaw = 0) => {
   K.push(x, y, z, yaw, 1);
   K.lit.rbox(0, 0, 0, s, s, s, 0.05, 0xc99250, { top: 0xdcac68, g: [0.78, 1.05], ao: 0.3 });
   for (const sg of [-1, 1]) {
-    K.lit.box(sg * (s / 2 - 0.05), 0, s / 2 + 0.01, 0.1, s, 0.03, 0x8a5a2b, { ao: 0 });
+    K.lit.cbox(sg * (s / 2 - 0.05), 0, s / 2 + 0.01, 0.1, s, 0.03, 0x8a5a2b, { ao: 0 });
     K.lit.box(-s / 2, 0.06, s / 2 + 0.01, s, 0.1, 0.03, 0x8a5a2b, { ao: 0 });
     K.lit.box(-s / 2, s - 0.16, s / 2 + 0.01, s, 0.1, 0.03, 0x8a5a2b, { ao: 0 });
-    K.lit.box(sg * (s / 2 + 0.01), 0, 0, 0.03, s, 0.1, 0x8a5a2b, { ao: 0 });
+    K.lit.cbox(sg * (s / 2 + 0.01), 0, 0, 0.03, s, 0.1, 0x8a5a2b, { ao: 0 });
   }
   K.pop();
 };
@@ -1703,7 +1704,7 @@ function hbBench(world) {
   return pf(world, 'bench', (K) => {
     K.lit.rbox(0, 0.42, 0, 1.7, 0.09, 0.5, 0.03, 0xb7824a, { top: 0xd09a5a });
     K.lit.rbox(0, 0.74, -0.2, 1.7, 0.38, 0.07, 0.03, 0xb7824a, { top: 0xd09a5a });
-    for (const bx of [-0.75, 0.75]) { K.lit.box(bx, 0, 0, 0.08, 0.45, 0.46, 0x39424f); K.lit.box(bx, 0.4, -0.2, 0.08, 0.7, 0.06, 0x39424f); }
+    for (const bx of [-0.75, 0.75]) { K.lit.cbox(bx, 0, 0, 0.08, 0.45, 0.46, 0x39424f); K.lit.cbox(bx, 0.4, -0.2, 0.08, 0.7, 0.06, 0x39424f); }
     K.shadow(0, 0, 1.0, 0.55, 0.3);
   });
 }
@@ -1723,15 +1724,15 @@ function hbKiosk(world, v) {
     const wall = v ? 0xffe7b0 : 0xbfe6f5, aw = v ? [0x2f80ed, 0xffffff] : [0xe5533d, 0xffffff];
     K.lit.rbox(0, 0, 0, 3.0, 2.3, 2.0, 0.08, wall, { top: shadeHex(wall, 1.1) });
     K.lit.rbox(0, 2.25, 0, 3.4, 0.2, 2.4, 0.06, 0x4a5568, { top: 0x5c6a80 });
-    K.lit.box(0, 0.95, 1.02, 2.2, 0.08, 0.5, 0xb7824a);                 // counter
-    K.lit.box(0, 1.05, 1.0, 2.0, 0.9, 0.02, 0x20262e);                  // window opening
-    K.glow.box(0, 1.1, 1.01, 1.9, 0.8, 0.01, 0xffd98a);
+    K.lit.cbox(0, 0.95, 1.02, 2.2, 0.08, 0.5, 0xb7824a);                 // counter
+    K.lit.cbox(0, 1.05, 1.0, 2.0, 0.9, 0.02, 0x20262e);                  // window opening
+    K.glow.cbox(0, 1.1, 1.01, 1.9, 0.8, 0.01, 0xffd98a);
     // striped awning
     for (let i = 0; i < 7; i++) {
       const x0 = -1.75 + i * 0.5, c = aw[i % 2];
       K.lit2.quad4([x0, 2.0, 1.0], [x0 + 0.5, 2.0, 1.0], [x0 + 0.5, 1.55, 1.75], [x0, 1.55, 1.75], c, { top: shadeHex(c, 0.92), tc: [1, 1, 0, 0] });
     }
-    K.lit.box(-1.4, 0, 1.0, 0.07, 1.6, 0.07, 0xdfe6ee, { ao: 0 }); K.lit.box(1.4, 0, 1.0, 0.07, 1.6, 0.07, 0xdfe6ee, { ao: 0 });
+    K.lit.cbox(-1.4, 0, 1.0, 0.07, 1.6, 0.07, 0xdfe6ee, { ao: 0 }); K.lit.cbox(1.4, 0, 1.0, 0.07, 1.6, 0.07, 0xdfe6ee, { ao: 0 });
     // table + umbrella
     K.lit.cyl(2.2, 0, 1.6, 0.05, 0.05, 0.75, 0xdfe6ee, { seg: 6 }); K.lit.cyl(2.2, 0.72, 1.6, 0.45, 0.45, 0.05, 0xffffff, { seg: 10 });
     K.lit.cyl(2.2, 0, 1.6, 0.025, 0.025, 2.2, 0xdfe6ee, { seg: 5, ao: 0 });
@@ -1753,13 +1754,13 @@ function hbCrane(world) {
     for (const y of [4.6, 9.2, H - 0.4]) for (const sz of [-1, 1]) K.lit.box(-gx, y, sz * gz - 0.15, gx * 2, 0.35, 0.3, frame, { g: [0.85, 1.0], ao: 0.1 });
     for (const y of [4.6, 9.2, H - 0.4]) for (const sx of [-1, 1]) K.lit.box(sx * gx - 0.15, y, -gz, 0.3, 0.35, gz * 2, frame, { g: [0.85, 1.0], ao: 0.1 });
     for (const sz of [-1, 1]) for (const sx of [-1, 1]) {   // diagonal braces
-      K.lit.box(sx * gx, 4.6, sz * gz, 0.2, 5.0, 0.2, frame, { rz: sx * 0.38, ao: 0 });
-      K.lit.box(sx * gx, 9.2, sz * gz, 0.2, 5.0, 0.2, frame, { rz: -sx * 0.38, ao: 0 });
+      K.lit.cbox(sx * gx, 4.6, sz * gz, 0.2, 5.0, 0.2, frame, { rz: sx * 0.38, ao: 0 });
+      K.lit.cbox(sx * gx, 9.2, sz * gz, 0.2, 5.0, 0.2, frame, { rz: -sx * 0.38, ao: 0 });
     }
     // machinery house + cab
     K.lit.rbox(0, H - 0.05, 0, 5.6, 1.6, 3.4, 0.12, accent, { top: 0xff7a59 });
     K.lit.rbox(-1.2, H + 1.5, 1.0, 1.4, 1.1, 1.2, 0.1, 0xffffff);
-    K.glow.box(-1.2, H + 1.75, 1.61, 1.0, 0.6, 0.01, 0xaee8ff);
+    K.glow.cbox(-1.2, H + 1.75, 1.61, 1.0, 0.6, 0.01, 0xaee8ff);
     // booms: seaward (local -z) long, landward short
     K.lit.box(-0.55, H + 0.3, -17, 1.1, 0.7, 17.5, 0xf2a900, { top: 0xffd24a, g: [0.8, 1.05], ao: 0.1 });
     K.lit.box(-0.55, H + 0.3, 0.8, 1.1, 0.7, 5.5, 0xf2a900, { top: 0xffd24a, ao: 0.1 });
@@ -1767,7 +1768,7 @@ function hbCrane(world) {
     // stay cables
     K.lit.tube([[0, H + 1.0, 0.5], [0, H + 4.2, 0], [0, H + 1.0, -8], [0, H + 0.9, -16.2]], 0.05, 0x39424f, { segs: 12 });
     // trolley, hoist cables and spreader with a container
-    K.lit.box(-0.6, H + 0.0, -12, 1.2, 0.35, 1.6, dark);
+    K.lit.box(-0.6, H + 0.0, -12.8, 1.2, 0.35, 1.6, dark);
     for (const sx of [-0.5, 0.5]) K.lit.cyl(sx, H - 6.2, -12, 0.03, 0.03, 6.2, 0x20262e, { seg: 4, ao: 0, g: [1, 1] });
     K.lit.box(-1.4, H - 6.5, -13.3, 2.8, 0.25, 2.6, dark);
     K.stamp(hbContainer(world, 2), 0, H - 9.15, -12, PI / 2, 1);
@@ -1813,7 +1814,6 @@ function hbWarehouse(world, v) {
     const w = 11.0, d = 4.4, h = 3.7;
     K.lit.rbox(0, 0, 0, w, h, d, 0.08, wall, { top: shadeHex(wall, 1.1), g: [0.8, 1.05] });
     K.lit.prism(0, h - 0.05, 0, d + 0.8, 1.7, w + 0.7, roof, { ry: PI / 2, top: shadeHex(roof, 1.2), g: [0.85, 1.05] });
-    for (let i = 0; i < 12; i++) K.lit.box(-w / 2 - 0.25 + i * ((w + 0.5) / 11) - 0.03, h + 0.78, -0.4, 0.06, 0.04, d * 0.6, shadeHex(roof, 0.85), { ao: 0, g: [1, 1], rz: 0 });
     // trim band and rolling door
     K.lit.box(-w / 2 - 0.01, 3.0, d / 2 - 0.02, w + 0.02, 0.3, 0.06, shadeHex(wall, 0.8), { ao: 0 });
     K.lit.box(-1.8, 0, d / 2 - 0.02, 3.6, 2.9, 0.08, 0x55657a, { top: 0x6e819a, g: [0.8, 1.05], ao: 0.1 });
@@ -1822,8 +1822,8 @@ function hbWarehouse(world, v) {
     for (const x of [-4.3, -3.2, 2.2, 3.4, 4.5]) { K.lit.box(x - 0.45, 1.8, d / 2 - 0.02, 0.9, 1.0, 0.07, 0xffffff, { ao: 0 }); K.glow.box(x - 0.38, 1.88, d / 2 + 0.02, 0.76, 0.84, 0.01, 0x9ad8ff); K.lit.box(x - 0.02, 1.88, d / 2 + 0.03, 0.04, 0.84, 0.02, 0xffffff, { ao: 0, g: [1, 1] }); }
     K.lit.box(4.3, 0, d / 2 - 0.02, 1.0, 2.1, 0.08, 0xe5533d, { ao: 0.1 });
     // sign
-    K.lit.rbox(-1.8, 3.1, d / 2 + 0.0, 3.0, 0.5, 0.1, 0.04, 0x1f3a5f, {});
-    K.glow.box(-3.05, 3.22, d / 2 + 0.06, 0.5, 0.26, 0.01, 0xffc21a); K.glow.box(-2.3, 3.22, d / 2 + 0.06, 1.8, 0.26, 0.01, 0xffffff);
+    K.lit.rbox(0, 3.1, d / 2 + 0.0, 3.0, 0.5, 0.1, 0.04, 0x1f3a5f, {});
+    K.glow.box(-1.35, 3.22, d / 2 + 0.06, 0.5, 0.26, 0.01, 0xffc21a); K.glow.box(-0.7, 3.22, d / 2 + 0.06, 2.0, 0.26, 0.01, 0xffffff);
     // side details: pipe + lamp
     K.lit.cyl(5.2, 0, d / 2 - 0.15, 0.09, 0.09, 3.6, 0x8a97a6, { seg: 6 });
     K.lit.box(-w / 2 + 0.2, 0, -1, 0.9, 0.8, 0.9, 0x8a97a6);
@@ -1836,7 +1836,7 @@ function hbJetty(world, v) {
     const L = 9.0, wdt = 1.9;
     for (let i = 0; i < 9; i++) K.lit.box(-wdt / 2, 0.02, -i * 1.0 - 0.5, wdt, 0.1, 0.95, i % 2 ? 0xa97542 : 0xb7824a, { ao: 0, top: 0xd09a5a, g: [0.95, 1.05] });
     for (const sx of [-1, 1]) {
-      K.lit.box(sx * (wdt / 2 - 0.08), -0.1, -L / 2, 0.16, 0.14, L, 0x6b4a2a, { ao: 0 });
+      K.lit.cbox(sx * (wdt / 2 - 0.08), -0.1, -L / 2, 0.16, 0.14, L, 0x6b4a2a, { ao: 0 });
       for (let i = 0; i < 3; i++) K.lit.cyl(sx * (wdt / 2 - 0.02), -1.6, -0.6 - i * 3.6, 0.12, 0.11, 2.1, 0x5a3d22, { seg: 5, top: 0x7a5030, ao: 0 });
     }
     for (const z of [-0.5, -4.5, -8.5]) for (const sx of [-1, 1]) {
@@ -1874,7 +1874,6 @@ function hbSailboat(world, v) {
     K.shadow(0, 0, 1.5, 3.5, 0.5, 0, 0.03, 0xffffff);
   });
 }
-function hbBollardRow() { return null; }
 
 function genHarbor(world, side, len, rng) {
   const S = new Chunk(world, side, len, rng);
@@ -1911,7 +1910,7 @@ function genHarbor(world, side, len, rng) {
       S.put(hbFlag(world, 1), 14.2, z + 0.6);
     } },
     { w: 11, weight: 1.5, fn: (S, z) => {          // lighthouse point
-      S.put(hbLighthouse(world), 13.6, z + 0.8, { yaw: 0 });
+      S.put(hbLighthouse(world), 12.9, z + 0.8, { yaw: 0 });
       S.put(hbCottage(world), 10.2, z - 2.4, { face: true });
       S.put(hbBed(world, 1), 9.2, z + 3.4, { face: true });
     } },
@@ -2082,10 +2081,9 @@ function genNeon(world, side, len, rng) {
   K.glow.box(bx - 0.82, 7.08, -len, 0.05, 0.08, len, 0x39f3ff); K.glow.box(bx + 0.77, 7.08, -len, 0.05, 0.08, len, 0x39f3ff);
   K.glow.box(bx - 0.3, 6.96, -len, 0.6, 0.05, len, 0xff3df2);
   for (const z of [-7.5, -22.5]) {
-    K.lit.cyl(bx, 0, z, 0.55, 0.38, 6.2, 0x4a4090, { seg: 8, top: 0x7b61ff });
+    K.lit.cyl(bx, -1.6, z, 0.6, 0.38, 7.8, 0x4a4090, { seg: 8, top: 0x7b61ff });
     K.lit.rbox(bx, 6.1, z, 3.0, 0.7, 1.0, 0.1, 0x2b2550, { ao: 0 });
     K.glow.box(bx - 0.3, 0.9, z + 0.52, 0.6, 0.06, 0.02, 0x39f3ff);
-    K.shadow(bx, z, 1.2, 1.2, 0.4);
   }
   if (rng() < 0.4) { const z = -len * (0.35 + 0.3 * rng()); K.stamp(nTrain(world), bx, 7.8, z + 4, 0, 1); }
   const T = [
@@ -2094,20 +2092,20 @@ function genNeon(world, side, len, rng) {
       S.put(nShop(world, ri(3)), 9.7, z - 3.0, { face: true });
       S.put(nSkyscraper(world, ri(5)), 12.6, z + 3.4, { face: true });
       S.put(nVending(world, ri(5)), 9.2, z + 3.4, { face: true });
-      S.put(nPalm(world, ri(3)), 9.0, z + 0.2, { yaw: rng() * 6 });
+      S.put(nPalm(world, ri(3)), 9.2, z + 0.2, { yaw: rng() * 6 });
     } },
     { w: 10, weight: 2.4, fn: (S, z) => {
       S.put(nBillboard(world, ri(8)), 11.4, z - 0.4, { face: true });
       S.put(nSkyscraper(world, ri(5)), 14.0, z + 3.0, { face: true });
       S.put(nSakura(world, ri(2)), 9.5, z + 3.2, { yaw: rng() * 6 });
       S.put(nVending(world, ri(5)), 9.0, z - 3.6, { face: true });
-      S.put(nPalm(world, ri(3)), 9.0, z - 2.0, { yaw: rng() * 6 });
+      S.put(nPalm(world, ri(3)), 9.2, z - 2.0, { yaw: rng() * 6 });
     } },
     { w: 9, weight: 2.0, fn: (S, z) => {
       S.put(nSakura(world, 0), 10.2, z - 1.6, { yaw: 1 });
       S.put(nSakura(world, 1), 12.6, z + 2.0, { yaw: 2 });
       S.put(nGlobe(world), 9.3, z + 0.9, {});
-      S.put(nPalm(world, ri(3)), 9.0, z - 3.5, { yaw: rng() * 6 });
+      S.put(nPalm(world, ri(3)), 9.2, z - 3.5, { yaw: rng() * 6 });
       S.put(nLanternString(world, ri(5)), 10.4, z + 3.8 + 0, { face: true, yaw: 0 });
       S.put(nSkyscraper(world, ri(5)), 14.2, z - 1.0, { face: true });
     } },
@@ -2115,7 +2113,7 @@ function genNeon(world, side, len, rng) {
       S.put(nSkyscraper(world, 2), 13.2, z - 4.2, { face: true });
       S.put(nSkyscraper(world, 4), 13.6, z + 2.6, { face: true });
       S.put(nShop(world, ri(3)), 9.7, z - 0.6, { face: true });
-      S.put(nPalm(world, ri(3)), 9.0, z + 4.0, { yaw: rng() * 6 });
+      S.put(nPalm(world, ri(3)), 9.2, z + 4.0, { yaw: rng() * 6 });
       S.put(nLanternString(world, ri(5)), 9.3, z - 5.9, { face: true });
     } },
     { w: 10, weight: 2.0, fn: (S, z) => {
@@ -2864,7 +2862,9 @@ const GEN = {
   dunes: typeof genDunes === 'function' ? genDunes : null,
 };
 
+function safeWorld(world) { return LP[world && world.id] ? world : Object.assign({}, world || {}, { id: 'harbor' }); }
 export function makeProps(world, side, len, rng) {
+  world = safeWorld(world);
   GAIN = WGAIN[world.id] || 1;
   const gen = GEN[world.id] || GEN.harbor;
   return gen(world, side < 0 ? -1 : 1, len || TILE, rng || Math.random);
