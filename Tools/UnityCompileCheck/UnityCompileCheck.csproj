@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles every script under Assets/Scripts against the UnityEngine 2021.3 reference assemblies
+    (C# 9, .NET Standard 2.1, like the Unity compiler) so Unity code can be checked without the editor.
+    Pass -p:InputSystem=true to compile the new Input System code paths against minimal API stubs.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>UNITY_2021_3_OR_NEWER;UNITY_STANDALONE;ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
+    <NoWarn>CS0649</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(InputSystem)' == 'true'">
+    <DefineConstants>UNITY_2021_3_OR_NEWER;UNITY_STANDALONE;ENABLE_INPUT_SYSTEM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />
+    <Compile Include="../../Assets/Scripts/**/*.cs" LinkBase="Scripts" />
+    <Compile Include="InputSystemStubs.cs" Condition="'$(InputSystem)' == 'true'" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Runner core tests (same files as the Unity Test Runner)
+        run: dotnet test Tools/CoreTests/CoreTests.csproj -c Release
+
+      - name: Race server end-to-end tests
+        run: dotnet test Server/TitanEarthfall.Server.Tests/TitanEarthfall.Server.Tests.csproj -c Release
+
+      - name: Compile Unity scripts against UnityEngine 2021.3 (legacy input)
+        run: dotnet build Tools/UnityCompileCheck/UnityCompileCheck.csproj
+
+      - name: Compile Unity scripts (Input System code paths)
+        run: dotnet build Tools/UnityCompileCheck/UnityCompileCheck.csproj -p:InputSystem=true
