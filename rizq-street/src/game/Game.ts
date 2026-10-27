@@ -1081,7 +1081,7 @@ export class Game {
       case 'delivery':
         return this.hud.setObjective(`🥡 وصّل الطلب لـ${j.door.name}`, j.left, true);
       case 'wash':
-        return this.hud.setObjective(`🧽 نظّف البقع: ${j.total - j.spots.length}/${j.total} — اسحب على البقع بالماوس أو إصبعك`, j.left, true);
+        return this.hud.setObjective(`🧽 نظّف البقع: ${j.total - j.spots.length}/${j.total} — امسحها بالسحب`, j.left, true);
       case 'sweep':
         return this.hud.setObjective(`🧹 كنّس الشعر: ${6 - j.piles.length}/6`, null, true);
     }
@@ -1202,8 +1202,9 @@ export class Game {
     if (j?.kind !== 'wash') return;
     const c = j.car.position;
     this.rig.focus = { point: new Vector3(c.x, 0.9, c.z), yaw: this.washYaw, pitch: 0.42, dist: 6.2 };
-    // Stand the player beside the car on the camera's side.
-    this.player.place(c.x + Math.sin(this.washYaw) * 2.6, c.z + Math.cos(this.washYaw) * 2.6, this.washYaw + Math.PI);
+    // Stand the player off to one side so the car stays in full view.
+    const side = this.washYaw + 1.15;
+    this.player.place(c.x + Math.sin(side) * 2.7, c.z + Math.cos(side) * 2.7, side + Math.PI);
   }
 
   private scrubAt(x: number, y: number): void {

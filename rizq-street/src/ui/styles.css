@@ -488,7 +488,7 @@ select:focus-visible {
   inset: 0;
   pointer-events: none;
   overflow: hidden;
-  z-index: 5;
+  z-index: 0;
 }
 
 .name-tag {
@@ -1705,9 +1705,13 @@ select.field {
 
 @media (max-width: 760px) {
   .objective {
-    top: calc(118px + var(--safe-t));
-    max-width: calc(100vw - 24px);
-    font-size: 13.5px;
+    top: calc(124px + var(--safe-t));
+    left: auto;
+    right: calc(12px + var(--safe-r));
+    transform: none;
+    max-width: calc(100vw - 160px);
+    font-size: 13px;
+    text-align: start;
   }
   .minimap {
     width: 116px;
@@ -1724,7 +1728,8 @@ select.field {
     display: none;
   }
   .toasts {
-    top: calc(160px + var(--safe-t));
+    top: calc(196px + var(--safe-t));
+    width: min(330px, calc(100vw - 160px));
   }
   .till,
   .cup-area {
