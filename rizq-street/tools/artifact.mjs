@@ -11,7 +11,9 @@ const pick = (re, what) => {
 };
 const title = pick(/<title>[\s\S]*?<\/title>/, 'title');
 const style = pick(/<style[^>]*>[\s\S]*?<\/style>/, 'style').replace(/<style[^>]*>/, '<style>');
-const script = pick(/<script type="module"[^>]*>[\s\S]*?<\/script>/, 'script');
+// A bundled library writes U+FFFD literally inside a string; escape it so the page
+// text carries no replacement characters.
+const script = pick(/<script type="module"[^>]*>[\s\S]*?<\/script>/, 'script').replace(/\uFFFD/g, '\\uFFFD');
 const body = pick(/<body>[\s\S]*?<\/body>/, 'body')
   .replace(/^<body>/, '')
   .replace(/<\/body>$/, '')
