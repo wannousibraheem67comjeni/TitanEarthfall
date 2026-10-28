@@ -7,7 +7,7 @@
 import type { Rng } from '../core/rng';
 import { fillTemplate, formatMoney, normalizeArabic } from '../lang/arabic';
 import { analyze, Lexicon } from '../lang/intents';
-import { job, JOBS, UPGRADES, type JobId, type NpcId, type UpgradeId } from '../game/catalog';
+import { COMPANY_RANKS, DEALS, job, JOBS, UPGRADES, type JobId, type NpcId, type UpgradeId } from '../game/catalog';
 import { GIGS } from '../game/jobs/online';
 import type { Store } from '../game/state';
 import { PLACES, place, type PlaceId } from '../world/layout';
@@ -20,8 +20,14 @@ export type GuideAction =
   | { type: 'setGoal'; amount: number; days: number; job: JobId | null }
   | { type: 'openPhone'; tab: 'home' | 'jobs' | 'shop' | 'wallet' | 'awards' | 'settings' }
   | { type: 'buy'; upgrade: UpgradeId }
+  | { type: 'move'; dir: MoveDir }
+  | { type: 'openBoard' }
+  | { type: 'invest' }
   | { type: 'sleep' }
   | { type: 'stop' };
+
+export type MoveDir = 'forward' | 'back' | 'left' | 'right' | 'out' | 'in';
+export const MOVE_DIRS: MoveDir[] = ['forward', 'back', 'left', 'right', 'out', 'in'];
 
 export interface GuideReply {
   text: string;
@@ -31,7 +37,7 @@ export interface GuideReply {
 
 export const GUIDE_NAME = 'سند';
 
-type Category = JobId | 'family' | 'work';
+type Category = JobId | 'family' | 'company' | 'work';
 
 const CATEGORY = new Lexicon<Category>([
   { id: 'online', phrases: ['اونلاين', 'اون لاين', 'الاونلاين', 'انترنت', 'الانترنت', 'نت', 'كمبيوتر', 'الكمبيوتر', 'لابتوب', 'اللابتوب', 'حاسوب', 'من البيت', 'عن بعد', 'فريلانس', 'عمل حر', 'العمل الحر', 'مستقل', 'online', 'ترجمه', 'تصميم', 'ادخال بيانات', 'تدقيق', 'اختبار*', 'امتحان*'] },
@@ -42,10 +48,20 @@ const CATEGORY = new Lexicon<Category>([
   { id: 'carwash', phrases: ['غسيل سيارات', 'مغسله', 'المغسله', 'اغسل سيارات', 'تغسيل'] },
   { id: 'hamadcar', phrases: ['العم حمد', 'عمي حمد', 'لاندكروزر', 'سياره حمد'] },
   { id: 'tutor', phrases: ['تدريس', 'دروس', 'ادرس', 'ادرّس', 'معلم', 'استاذ', 'رياضيات', 'واجب'] },
-  { id: 'family', phrases: ['امي', 'ماما', 'اهلي', 'مساعده اهلي', 'اساعد اهلي', 'ساعد اهلي', 'الزرع', 'زباله', 'الزباله', 'مقاضي', 'شغل البيت'] },
-  { id: 'stall', phrases: ['بسطه', 'البسطه', 'ابيع', 'بيع', 'تجاره', 'بزنس', 'مشروع'] },
+  { id: 'sweep', phrases: ['كنس', 'اكنس', 'كنس البيت', 'تنظيف البيت', 'انظف البيت', 'نظف البيت', 'انظف', 'المكنسه', 'غبار'] },
+  { id: 'dishes', phrases: ['صحون', 'الصحون', 'مواعين', 'المواعين', 'جلي', 'اغسل الصحون'] },
+  { id: 'tidy', phrases: ['رتب غرفتي', 'ارتب غرفتي', 'ترتيب الغرفه', 'غرفتي', 'العابي', 'اغراضي'] },
+  { id: 'laundry', phrases: ['الغسيل', 'غسيل الملابس', 'ملابس', 'الملابس', 'هدوم', 'اطوي'] },
+  { id: 'coffee', phrases: ['صب القهوه', 'اصب القهوه', 'ضيافه', 'الضيوف', 'دله', 'الدله', 'فناجين'] },
+  { id: 'family', phrases: ['امي', 'ماما', 'اهلي', 'مساعده اهلي', 'اساعد اهلي', 'ساعد اهلي', 'الزرع', 'زباله', 'الزباله', 'مقاضي', 'شغل البيت', 'شغل بالبيت', 'طلبات البيت', 'اساعد بالبيت'] },
+  { id: 'reception', phrases: ['استقبال', 'الاستقبال', 'مكالمات', 'سنترال'] },
+  { id: 'sales', phrases: ['مبيعات', 'المبيعات', 'مندوب', 'مسوق', 'تسويق'] },
+  { id: 'accounting', phrases: ['محاسب', 'محاسبه', 'المحاسبه', 'فواتير', 'حسابات'] },
+  { id: 'company', phrases: ['شركه', 'شركات', 'الشركه', 'الشركات', 'وظيفه', 'وظايف', 'وظائف', 'موظف', 'مكتب', 'دوام', 'راتب'] },
+  { id: 'trade', phrases: ['تجاره', 'صفقه', 'صفقات', 'تاجر', 'اشتغل مع', 'اشتغل معه', 'احد اشتغل معه', 'شخص اشتغل معه', 'بضاعه'] },
+  { id: 'stall', phrases: ['بسطه', 'البسطه', 'ابيع', 'بيع', 'بزنس', 'مشروع'] },
   { id: 'recycle', phrases: ['تدوير', 'اعاده تدوير', 'علب', 'قناني', 'بلاستيك'] },
-  { id: 'barber', phrases: ['حلاق', 'الحلاق', 'صالون', 'كنس', 'اكنس'] },
+  { id: 'barber', phrases: ['حلاق', 'الحلاق', 'صالون', 'كنس الصالون', 'كنس الشعر'] },
   { id: 'work', phrases: ['شغل*', 'عمل', 'وظيف*', 'اشتغل', 'دوام', 'اكسب', 'يكسبني', 'يجيبلي', 'يجيب لي', 'فلوس', 'مصاري', 'بيزات', 'دراهم', 'درهم', 'رزق', 'دخل'] },
 ]);
 
@@ -63,6 +79,8 @@ const PEOPLE = new Lexicon<NpcId>([
   { id: 'hamad', phrases: ['العم حمد', 'حمد'] },
   { id: 'electro', phrases: ['مازن'] },
   { id: 'barber', phrases: ['ابو علاء'] },
+  { id: 'hr', phrases: ['نوره', 'الاستاذه نوره', 'الموارد البشريه'] },
+  { id: 'partner', phrases: ['ابو راشد', 'التاجر'] },
 ]);
 const UPGRADE_WORDS = new Lexicon<UpgradeId>([
   { id: 'sneakers', phrases: ['حذاء', 'جوتي', 'جزمه', 'كوتشي', 'سنيكرز'] },
@@ -87,6 +105,18 @@ const STATUS_WORDS = ['كم معي', 'كم عندي', 'فلوسي', 'رصيدي'
 const HELP_WORDS = ['كيف العب', 'كيف ألعب', 'شو اسوي', 'ايش اسوي', 'وش اسوي', 'ما فهمت', 'مش فاهم', 'مو فاهم', 'ساعدني', 'شرح', 'اشرح', 'كيف امشي', 'شو اعمل', 'help'];
 const STOP_WORDS = ['وقف', 'وقّف', 'خلاص', 'الغي', 'الغاء', 'استنى', 'ستوب', 'stop', 'كنسل'];
 const SLEEP_WORDS = ['نام', 'انام', 'بنام', 'تعبت', 'نعسان', 'نعسانه', 'تصبح على خير'];
+const BOARD_WORDS = ['على قدي', 'على قدك', 'تناسبني', 'يناسبني', 'لوحه الوظائف', 'لوحه الشغل', 'شو في شغل', 'ايش في شغل', 'وش في شغل', 'كل الوظائف', 'الوظائف المتاحه', 'شغلات'];
+const RICH_WORDS = ['غني', 'اصير غني', 'اغتني', 'ثروه', 'مليونير', 'مليون', 'الغنى', 'اكون غني'];
+const INVEST_WORDS = ['استثمر', 'استثمار', 'شراكه', 'شريك', 'اشارك', 'فلوسي تشتغل', 'دخل يومي'];
+/** Spoken movement: "امشي لقدام", "ارجع", "لف يمين", "اطلع برا", "ادخل البيت". */
+const MOVES: [string[], MoveDir][] = [
+  [['ادخل البيت', 'ادخل للبيت', 'فوت البيت', 'فوت عالبيت', 'ادخل جوا', 'جوا البيت', 'داخل البيت', 'ادخل الدار'], 'in'],
+  [['اطلع برا', 'اطلع من البيت', 'اطلع للشارع', 'الشارع', 'برا البيت', 'اطلع', 'اخرج'], 'out'],
+  [['قدام', 'لقدام', 'للقدام', 'امشي', 'امش', 'كمل', 'تقدم', 'سير', 'روح قدام', 'للامام', 'الامام'], 'forward'],
+  [['ورا', 'لورا', 'ارجع', 'رجع', 'الخلف', 'للخلف'], 'back'],
+  [['يمين', 'لليمين', 'عاليمين', 'على اليمين'], 'right'],
+  [['يسار', 'شمال', 'لليسار', 'عاليسار', 'عالشمال', 'على اليسار'], 'left'],
+];
 const PHONE_WORDS: [string[], GuideAction & { type: 'openPhone' }][] = [
   [['المتجر', 'متجر', 'المشتريات'], { type: 'openPhone', tab: 'shop' }],
   [['الانجازات', 'انجازاتي'], { type: 'openPhone', tab: 'awards' }],
@@ -124,7 +154,19 @@ export function bestJob(store: Store, prefer: JobId[] = [], avoid: JobId[] = [])
 }
 
 function familyJob(store: Store): JobId | null {
-  return (['plants', 'trash', 'errand'] as JobId[]).find((j) => store.jobBlock(j) === null) ?? null;
+  return (['sweep', 'dishes', 'tidy', 'laundry', 'coffee', 'plants', 'trash', 'errand'] as JobId[]).find((j) => store.jobBlock(j) === null) ?? null;
+}
+
+/** The company job that fits the player now (highest rank they hold, open now). */
+function companyJob(store: Store): JobId | null {
+  return (['accounting', 'sales', 'reception'] as JobId[]).find((j) => store.jobBlock(j) === null) ?? null;
+}
+
+/** Open jobs that fit right now, best paid first. */
+export function fittingJobs(store: Store): JobId[] {
+  return JOBS.filter((j) => j.id !== 'recycle' && store.jobBlock(j.id) === null)
+    .sort((a, b) => roundPay(store, b.id) - roundPay(store, a.id))
+    .map((j) => j.id);
 }
 
 function blockText(store: Store, id: JobId): string {
@@ -136,19 +178,20 @@ function blockText(store: Store, id: JobId): string {
     return `${def.title} مسكّر الحين، يفتح الساعة ${h12}${from < 12 ? ' الصبح' : from < 17 ? ' الظهر' : ' المسا'}.`;
   }
   if (b === 'done') return `${def.title} خلصته اليوم، بكرة تقدر{|ين} تسويه مرة ثانية.`;
-  if (b === 'locked') return `للبيع تحتاج{|ين} بسطة أول، رحيم بالبقالة يبيعها بـ200 درهم.`;
+  if (b === 'locked') return store.lockText(id);
   return '';
 }
 
 function where(id: JobId): string {
   const def = job(id);
   if (id === 'online') return 'اللابتوب اللي بحوش بيتكم';
-  if (def.employer === 'mum') return 'أمك بالحوش';
-  if (def.employer === 'dad') return 'أبوك بمحل العطور';
+  if (def.employer === 'mum') return 'أمك بالبيت';
+  if (def.employer === 'dad') return def.place === 'home' ? 'أبوك بالمجلس بالبيت' : 'أبوك بمحل العطور';
+  if (def.employer === 'partner') return 'أبو راشد التاجر عند الكرك';
   return def.employer ? `${npc(def.employer).name} في ${place(def.place).name}` : place(def.place).name;
 }
 
-const SUGGEST = ['أبي شغل أونلاين', 'ودني لأمي', 'وين أحسن شغل الحين؟', 'كم معي فلوس؟', 'أبي أشتغل توصيل'];
+const SUGGEST = ['أبي شغل أونلاين', 'شو في شغل على قدي؟', 'ادخل البيت', 'ودني الشركة', 'أبي أصير غني'];
 
 /** Understand a request to the guide. */
 export function guideRespond(text: string, store: Store, rng: Rng, last: JobId | null = null): GuideReply {
@@ -162,6 +205,8 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
   const workish = cats.length > 0 || a.has('ask_work') || a.has('money_advice');
   const amount = a.numbers.filter((n) => n >= 20).sort((x, y) => y - x)[0] ?? null;
   const days = periodDays(norm);
+  const people = PEOPLE.find(a.variants);
+  const places = PLACE_WORDS.find(a.variants);
   const navigate = (): GuideReply => {
     const people = PEOPLE.find(a.variants);
     const places = PLACE_WORDS.find(a.variants);
@@ -185,7 +230,7 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
     };
   }
 
-  if (has(norm, STATUS_WORDS) && !specific.length && !a.has('ask_work', 1)) {
+  if (has(norm, STATUS_WORDS) && !specific.length && !a.has('ask_work', 1) && !has(norm, INVEST_WORDS) && !has(norm, RICH_WORDS)) {
     const s = store.s;
     let t = say('معك {w} بالمحفظة و{b} بالبنك.', { w: formatMoney(s.wallet), b: formatMoney(s.bank) });
     if (s.goal) {
@@ -194,6 +239,47 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
       t += say(' هدفك {amount}، جمعت منه {got} وباقي {left} يوم.', { amount: formatMoney(s.goal.amount), got: formatMoney(got), left });
     }
     return { text: t, actions: [], suggestions: ['وين أحسن شغل الحين؟', 'أبي شغل أونلاين', 'ودني الصراف'] };
+  }
+
+  // Moving by voice: short commands like "امشي لقدام" or "ادخل البيت".
+  if (tokens.length <= 5 && !specific.length && amount === null) {
+    for (const [words, dir] of MOVES) {
+      if (!has(norm, words)) continue;
+      if (dir === 'forward' && (people.length || places.length)) break;
+      const line = { forward: 'يلا لقدام!', back: 'نرجع لورا.', left: 'نلف يسار ونمشي.', right: 'نلف يمين ونمشي.', out: 'يلا نطلع للشارع.', in: 'يلا ندخل البيت.' }[dir];
+      return { text: say(line), actions: [{ type: 'move', dir }], suggestions: ['قدام', 'يمين', 'يسار', 'وقف'] };
+    }
+  }
+
+  if (has(norm, RICH_WORDS)) {
+    return {
+      text: say(
+        'الغنى خطوات يا {name}: أول شي اشتغل{|ي} كل يوم، شغل البيت وبرا. ثاني شي وفّر{|ي} بالبنك وهو يزيد كل يوم. ثالث شي ادخل{|ي} الشركة وترقى{|ن}، الراتب يكبر مع كل رتبة. ورابع شي استثمر{|ي} مع أبو راشد التاجر، شراكة تعطيك دخل كل يوم. من وين نبدأ؟',
+      ),
+      actions: [],
+      suggestions: ['ودني الشركة', 'أبي أستثمر', 'شو في شغل على قدي؟', 'أبي أجمع 5000 درهم بالشهر'],
+    };
+  }
+
+  if (has(norm, INVEST_WORDS) && !specific.filter((c) => c !== 'trade').length) {
+    const cheapest = DEALS[0];
+    if (store.netWorth < cheapest.cost)
+      return {
+        text: say('الاستثمار عند أبو راشد يبدأ من {cost}، ومعك {worth}. نجمع الباقي أول؟ حطيت لك هدف.', { cost: formatMoney(cheapest.cost), worth: formatMoney(store.netWorth) }),
+        actions: [{ type: 'setGoal', amount: cheapest.cost - store.netWorth, days: 7, job: null }],
+        suggestions: ['شو في شغل على قدي؟', 'أبي شغل أونلاين'],
+      };
+    return { text: say('أبو راشد التاجر عند الكرك عنده شراكات تعطيك دخل كل يوم. يلا أوديك عنده.'), actions: [{ type: 'invest' }], suggestions: ['وقف', 'وصّلني الحين'] };
+  }
+
+  if (has(norm, BOARD_WORDS) && !specific.length) {
+    const fit = fittingJobs(store).slice(0, 3);
+    const list = fit.map((id) => `${job(id).title} (${formatMoney(roundPay(store, id))})`).join('، ');
+    return {
+      text: fit.length ? say('الحين على قدك: {list}. وكل الشغل مكتوب بلوحة الوظائف قدام الشركة، يلا أوديك.', { list }) : say('الحين أغلب الشغل مسكّر. الشغل الأونلاين مفتوح دايماً. شوف{|ي} لوحة الوظائف.'),
+      actions: [{ type: 'openBoard' }],
+      suggestions: fit.length ? [`أبي ${job(fit[0]).title}`, 'وقف'] : ['أبي شغل أونلاين'],
+    };
   }
 
   if (has(norm, SLEEP_WORDS) && !workish) {
@@ -219,8 +305,6 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
   }
 
   // Explicitly going somewhere or to someone ("ودني لأمي", "أبي أكلم جدي").
-  const people = PEOPLE.find(a.variants);
-  const places = PLACE_WORDS.find(a.variants);
   const talkWords = has(norm, ['اكلم', 'كلم', 'احكي مع', 'اشوف', 'سلم على', 'اسلم على']);
   const explicitGo = has(norm, GO_WORDS) || a.has('ask_location') || talkWords;
   const workWords = cats.includes('work') || a.has('ask_work', 1);
@@ -233,7 +317,10 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
     const cat = specific[0];
     if (cat === 'family') {
       target = familyJob(store);
-      if (!target) why = say('أمك اليوم ما عندها شي ثاني، ساعدتها بكل شي. ');
+      if (!target) why = say('أهلك اليوم ما عندهم شي ثاني، ساعدتهم بكل شي. ');
+    } else if (cat === 'company') {
+      target = companyJob(store);
+      if (!target) why = say('الشركة مسكّرة الحين، الدوام من الساعة ثمان الصبح. ');
     } else if (cat) {
       target = cat;
       if (store.jobBlock(target) !== null) {
@@ -267,7 +354,13 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
             });
     }
     actions.push({ type: 'goJob', job: target });
-    const intro = target === 'online' ? say('الشغل الأونلاين على {where}. أول مرة يسوون لك اختبار قبول قصير، وبعدها تختار{|ين} المهمة. ', { where: where(target) }) : say('{job} عند {where}، الأجر حوالي {per}. ', { job: job(target).title, where: where(target), per: formatMoney(per) });
+    const def = job(target);
+    const intro =
+      target === 'online'
+        ? say('الشغل الأونلاين على {where}. أول مرة يسوون لك اختبار قبول قصير، وبعدها تختار{|ين} المهمة. ', { where: where(target) })
+        : def.company && !store.s.flags.companyHired
+          ? say('{job} في مجموعة الرزق، الراتب حوالي {per} للوردية. أول مرة الأستاذة نورة تسوي لك مقابلة قصيرة. ', { job: def.title, per: formatMoney(per) })
+          : say('{job} عند {where}، الأجر حوالي {per}. ', { job: def.title, where: where(target), per: formatMoney(per) });
     return { text: why + plan + intro + say(rng.pick(['يلا أوديك!', 'تعال{|ي} معي، أوديك.', 'يلا نمشي.'])), actions, suggestions: ['وقف', 'وصّلني الحين', 'لا، أبي شغل ثاني'] };
   }
 
@@ -295,5 +388,7 @@ export function guideCatalogue(store: Store): string {
   const people = NPCS.map((n) => `${n.id}=${n.name}`).join('، ');
   const places = PLACES.map((p) => `${p.id}=${p.name}`).join('، ');
   const ups = UPGRADES.map((u) => `${u.id}=${u.name} (${formatMoney(u.price)})`).join('، ');
-  return `الشغل:\n${jobs}\nالناس: ${people}\nالأماكن: ${places}\nالمشتريات: ${ups}`;
+  const rank = store.s.flags.companyHired ? `رتبته بالشركة: ${COMPANY_RANKS[store.companyRank].title}` : 'ما سوى مقابلة الشركة بعد (أول شغل بالشركة يبدأ بمقابلة)';
+  const deals = DEALS.map((d) => `${d.name} بـ${formatMoney(d.cost)} يعطي ${formatMoney(d.perDay)} يومياً ${d.days} يوم`).join('، ');
+  return `الشغل:\n${jobs}\n${rank}\nشراكات أبو راشد: ${deals}\nالناس: ${people}\nالأماكن: ${places}\nالمشتريات: ${ups}`;
 }

@@ -25,7 +25,9 @@ export type PlaceId =
   | 'hamad'
   | 'park'
   | 'stall'
-  | 'alley';
+  | 'alley'
+  | 'company'
+  | 'jobboard';
 
 export interface Place {
   id: PlaceId;
@@ -58,7 +60,9 @@ export const PLACES: Place[] = [
   { id: 'barber', name: 'صالون الأناقة', hint: 'جنب محل العطور', x: 1, z: -10, phrases: ['الحلاق', 'حلاق', 'الصالون', 'صالون', 'ابو علاء'], icon: '💈' },
   { id: 'electronics', name: 'عالم الجوال', hint: 'بعد الصالون، الواجهة الزرقا', x: 19, z: -10, phrases: ['الجوالات', 'محل الجوالات', 'جوال', 'الكترونيات', 'لابتوب', 'مازن', 'تلفونات'], icon: '📱' },
   { id: 'recycle', name: 'آلة إعادة التدوير', hint: 'جنب موقف الباص بعد محل الجوالات', x: 33, z: -9.4, phrases: ['التدوير', 'اعادة التدوير', 'الة التدوير', 'العلب', 'القناني', 'recycle'], icon: '♻️' },
-  { id: 'busstop', name: 'موقف الباص', hint: 'بعد محل الجوالات', x: 40, z: -9, phrases: ['الباص', 'موقف الباص', 'المحطة'], icon: '🚏' },
+  { id: 'busstop', name: 'موقف الباص', hint: 'آخر الشارع بعد المغسلة', x: 100, z: -9, phrases: ['الباص', 'موقف الباص', 'المحطة'], icon: '🚏' },
+  { id: 'company', name: 'مجموعة الرزق للأعمال', hint: 'البرج الزجاجي بعد محل الجوالات، قبل المغسلة', x: 39, z: -10, phrases: ['الشركه', 'شركه', 'الشركات', 'شركات', 'البرج', 'المكتب', 'مكتب', 'مجموعه الرزق', 'التوظيف', 'الموارد البشريه', 'نوره'], icon: '🏢' },
+  { id: 'jobboard', name: 'لوحة الوظائف', hint: 'قدام برج الشركة، فيها كل الشغل اللي على قدك', x: 45, z: -9, phrases: ['لوحه الوظائف', 'لوحه الشغل', 'اعلانات الشغل', 'الوظائف المتاحه', 'على قدي'], icon: '📋' },
   { id: 'carwash', name: 'مغسلة البريق', hint: 'آخر الشارع من جهة الشرق، المظلة الكبيرة', x: 60, z: -11, phrases: ['المغسلة', 'مغسلة', 'غسيل السيارات', 'غسيل سيارات', 'حمدان', 'carwash'], icon: '🚿' },
   { id: 'umali', name: 'بيت أم علي', hint: 'بيت جيرانكم، قبل السكة', x: -37, z: 14, phrases: ['ام علي', 'بيت ام علي', 'علي', 'الجيران', 'جيرانا'], icon: '📚' },
   { id: 'hamad', name: 'بيت العم حمد', hint: 'بعد السكة، اللاندكروزر البيضا واقفة قدامه', x: 2, z: 14, phrases: ['العم حمد', 'حمد', 'عمي حمد', 'بيت حمد'], icon: '🚙' },
@@ -122,6 +126,7 @@ export const SHOP_LOTS: ShopLot[] = [
   { minX: -26, maxX: -8, minZ: -24, maxZ: -10, place: 'perfume', sign: 'عطور أبو سالم', signColor: '#3b2a1a', signText: '#e9c46a', facade: '#eadfca', awning: ['#5a3e2b', '#e9c46a'], floors: 3 },
   { minX: -6, maxX: 8, minZ: -24, maxZ: -10, place: 'barber', sign: 'صالون الأناقة', signColor: '#24324a', signText: '#ffffff', facade: '#dfe3e6', awning: ['#2b5aa8', '#ffffff'], floors: 2 },
   { minX: 10, maxX: 28, minZ: -24, maxZ: -10, place: 'electronics', sign: 'عالم الجوال', signColor: '#0d4fa3', signText: '#ffffff', facade: '#d8dde3', awning: null, floors: 4 },
+  { minX: 28.6, maxX: 49.5, minZ: -24, maxZ: -10, place: 'company', sign: 'مجموعة الرزق للأعمال', signColor: '#123a57', signText: '#ffffff', facade: '#cfd8df', awning: null, floors: 6 },
 ];
 
 /** The car-wash lot and its canopy. */
@@ -172,11 +177,54 @@ export const HOME = {
   ],
   desk: { x: -61.5, z: 24.5 },
   door: { x: -70, z: 27.2 },
-  mum: { x: -74, z: 21 },
+  mum: { x: -61, z: 32 },
   trashPickup: { x: -66, z: 27.1 },
   streetBin: { x: -63.5, z: 11.4 },
   spawn: { x: -70, z: 24, heading: Math.PI },
 };
+
+/**
+ * Inside the family house: the hall (majlis) in the middle behind the front door, my
+ * room to the west, the kitchen to the east. Doorways between rooms at z 32.8–34.8.
+ */
+export const HOUSE = {
+  x0: -81,
+  x1: -59,
+  z0: 28,
+  z1: 42,
+  wallH: 3.6,
+  door: { x0: -71, x1: -69 },
+  inner: [-74, -66],
+  doorway: { z0: 32.8, z1: 34.8 },
+  hall: { x: -70, z: 31 },
+  dad: { x: -70, z: 39.6 },
+  bed: { x: -79.7, z: 39 },
+  wardrobe: { x: -76.1, z: 41.4 },
+  sink: { x: -59.7, z: 34.5 },
+  mess: [
+    { x: -77, z: 30.2 },
+    { x: -79.4, z: 31.6 },
+    { x: -75.4, z: 32.4 },
+    { x: -78.2, z: 35.6 },
+    { x: -75.6, z: 37.4 },
+  ],
+  dust: [
+    { x: -72.2, z: 30.4 },
+    { x: -67.8, z: 31.8 },
+    { x: -71.2, z: 37.4 },
+    { x: -63.6, z: 30.2 },
+    { x: -64.2, z: 39.6 },
+    { x: -77.6, z: 33.8 },
+  ],
+};
+
+export function insideHouse(x: number, z: number): boolean {
+  return x > HOUSE.x0 && x < HOUSE.x1 && z > HOUSE.z0 && z < HOUSE.z1;
+}
+
+/** In front of the company tower: Nora from HR at the door, the job board to the east. */
+export const COMPANY = { hr: { x: 40.6, z: -9.1 }, board: { x: 45.2, z: -9.2 } };
+export const PARTNER_SPOT = { x: -56, z: -8.3 };
 
 export const GRANDPA_SEAT = { x: -104, z: 12.2 };
 export const STALL_SPOT = { x: 80, z: 11.6 };

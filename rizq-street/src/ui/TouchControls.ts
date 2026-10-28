@@ -5,12 +5,10 @@ import { h } from './dom';
 export class TouchControls {
   readonly el = h('div.touch');
   readonly act = h('button.act', { type: 'button' }, 'تفاعل');
-  private readonly run = h('button', { type: 'button' }, 'ركض');
-  private readonly jump = h('button', { type: 'button' }, 'قفز');
 
   constructor(parent: HTMLElement, input: Input, onAct: () => void) {
     const knob = h('i');
-    const stick = h('div.stick', knob);
+    const stick = h('div.stick', h('b.up', '▲'), h('b.down', '▼'), h('b.left', '◀'), h('b.right', '▶'), knob, h('span.stick-label', 'امشِ'));
     let id: number | null = null;
     let cx = 0;
     let cy = 0;
@@ -35,7 +33,7 @@ export class TouchControls {
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
       input.stick.x = dx / R;
       input.stick.y = -dy / R;
-      input.touchRun = d > R * 0.98 || this.run.classList.contains('on');
+      input.touchRun = d > R * 0.9;
     };
     stick.addEventListener('pointermove', move);
     const end = (e: PointerEvent) => {
@@ -43,17 +41,12 @@ export class TouchControls {
       id = null;
       knob.style.transform = '';
       input.stick.x = input.stick.y = 0;
-      input.touchRun = this.run.classList.contains('on');
+      input.touchRun = false;
     };
     stick.addEventListener('pointerup', end);
     stick.addEventListener('pointercancel', end);
-    this.run.onclick = () => {
-      this.run.classList.toggle('on');
-      input.touchRun = this.run.classList.contains('on');
-    };
-    this.jump.addEventListener('pointerdown', () => (input.touchJump = true));
     this.act.onclick = onAct;
-    this.el.append(stick, h('div.touch-buttons', this.act, this.run, this.jump));
+    this.el.append(stick, h('div.touch-buttons', this.act));
     parent.append(this.el);
   }
 

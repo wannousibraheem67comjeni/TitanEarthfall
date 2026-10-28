@@ -22,6 +22,10 @@ export class Input {
   /** A quick tap or click on the view without dragging (walk there). */
   onTap: ((x: number, y: number) => void) | null = null;
   private tap: { id: number; x: number; y: number; t: number } | null = null;
+  /** Press and hold on the view (without dragging): walk toward the finger while held. */
+  steer: { x: number; y: number } | null = null;
+  private steerId: number | null = null;
+  private holdTimer = 0;
 
   constructor(el: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -36,7 +40,16 @@ export class Input {
     el.addEventListener('pointerdown', (e) => {
       el.focus({ preventScroll: true });
       if (this.onPointer?.(e, 'down')) return;
-      if (e.isPrimary && e.button === 0) this.tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+      if (e.isPrimary && e.button === 0) {
+        const tap = (this.tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() });
+        clearTimeout(this.holdTimer);
+        this.holdTimer = window.setTimeout(() => {
+          if (this.tap !== tap) return;
+          this.tap = null;
+          this.steerId = tap.id;
+          this.steer = { x: tap.x, y: tap.y };
+        }, 280);
+      }
       if (this.dragId !== null) return;
       this.dragId = e.pointerId;
       this.lastX = e.clientX;
@@ -45,6 +58,16 @@ export class Input {
     });
     el.addEventListener('pointermove', (e) => {
       if (this.onPointer?.(e, 'move')) return;
+      if (this.steer && e.pointerId === this.steerId) {
+        this.steer.x = e.clientX;
+        this.steer.y = e.clientY;
+        return;
+      }
+      // Moving before the hold kicks in makes it a camera drag.
+      if (this.tap && e.pointerId === this.tap.id && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > 10) {
+        clearTimeout(this.holdTimer);
+        this.tap = null;
+      }
       if (e.pointerId !== this.dragId) return;
       this.look.x += e.clientX - this.lastX;
       this.look.y += e.clientY - this.lastY;
@@ -54,6 +77,11 @@ export class Input {
     const end = (e: PointerEvent) => {
       this.onPointer?.(e, 'up');
       if (e.pointerId === this.dragId) this.dragId = null;
+      clearTimeout(this.holdTimer);
+      if (e.pointerId === this.steerId) {
+        this.steer = null;
+        this.steerId = null;
+      }
       const t = this.tap;
       this.tap = null;
       if (e.type === 'pointerup' && t && t.id === e.pointerId && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10 && performance.now() - t.t < 400) this.onTap?.(e.clientX, e.clientY);
@@ -102,6 +130,8 @@ export class Input {
 
   releaseAll(): void {
     this.down.clear();
+    this.steer = null;
+    this.steerId = null;
     this.stick.x = this.stick.y = 0;
     this.touchRun = false;
   }

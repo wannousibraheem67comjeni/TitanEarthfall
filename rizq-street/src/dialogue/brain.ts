@@ -6,7 +6,7 @@
 import type { Rng } from '../core/rng';
 import { fillTemplate, formatMoney, priceWith, toPlace, type Gender } from '../lang/arabic';
 import { analyze, Lexicon, type Analysis } from '../lang/intents';
-import { GROCERY_ITEMS, JOBS, UPGRADES, item, job, type ItemId, type JobId, type NpcId, type UpgradeId } from '../game/catalog';
+import { COMPANY_RANKS, DEALS, GROCERY_ITEMS, JOBS, UPGRADES, item, job, type ItemId, type JobId, type NpcId, type UpgradeId } from '../game/catalog';
 import type { Store } from '../game/state';
 import { PLACES, place, type PlaceId } from '../world/layout';
 import { npc as npcDef, NPCS, type NpcDef, type NpcLines } from './npcs';
@@ -18,7 +18,7 @@ export type Action =
   | { type: 'sell'; lines: { id: ItemId; qty: number }[]; total: number }
   | { type: 'buyUpgrade'; id: UpgradeId }
   | { type: 'snack'; name: string; price: number }
-  | { type: 'openShop'; shop: 'grocery' | 'electronics' }
+  | { type: 'openShop'; shop: 'grocery' | 'electronics' | 'deals' | 'jobboard' }
   | { type: 'mark'; place: PlaceId }
   | { type: 'completeErrand' }
   | { type: 'returnWallet' }
@@ -79,6 +79,8 @@ const upgradeLexicon = new Lexicon<UpgradeId>([
   { id: 'gift', phrases: ['هديه', 'هدية لامي', 'عقد', 'ذهب'] },
   { id: 'shop', phrases: ['محل خاص', 'كشك', 'محلي الخاص', 'محل لي'] },
 ]);
+const INVEST_WORDS = new Lexicon<'invest'>([{ id: 'invest', phrases: ['شراكه', 'شراكات', 'استثمر', 'استثمار', 'استثمارات', 'اشارك', 'نتشارك', 'ادخل معك', 'دخل يومي', 'فلوسي تشتغل', 'شريك'] }]);
+const RANK_WORDS = new Lexicon<'rank'>([{ id: 'rank', phrases: ['ترقيه', 'اترقى', 'رتبه', 'رتبتي', 'راتبي', 'الراتب', 'ترفيع'] }]);
 const MUM_MENTION = new Lexicon<'mum'>([{ id: 'mum', phrases: ['امي', 'ماما', 'اغراض امي', 'مقاضي', 'المقاضي', 'اغراض البيت', 'يمه', 'لامي'] }]);
 const SNACK_WORDS = {
   karak: new Lexicon<'karak'>([{ id: 'karak', phrases: ['كرك', 'كوب', 'شاي', 'استكانه', 'قهوه'] }]),
@@ -169,6 +171,12 @@ function suggestionsFor(conv: Conversation, w: BrainWorld): string[] {
       case 'ali':
         out.unshift('قول لي نكتة');
         break;
+      case 'partner':
+        out.unshift('أبي أستثمر فلوسي', 'عندك صفقة؟');
+        break;
+      case 'hr':
+        out.unshift('عندكم وظيفة؟', 'كيف أترقى؟');
+        break;
     }
   } else if (sp.ownsWallet && w.store.count('wallet') > 0) {
     out.unshift('لقيت هالمحفظة، هي لك؟');
@@ -211,7 +219,8 @@ export function opening(conv: Conversation, w: BrainWorld): Reply {
     text += render(conv, store, ' سلم{|ي} على جدك أول!');
   } else {
     const avail = def.jobs.find((j) => store.jobBlock(j) === null);
-    if (avail && first) text += render(conv, store, ' وعندي شغل لك إذا حاب{|ة}.');
+    if (def.id === 'hr' && !store.s.flags.companyHired) text += render(conv, store, ' إذا تبي{|ن} وظيفة عندنا، نسوي لك مقابلة قصيرة وتبدأ{|ين} بالاستقبال.');
+    else if (avail && first) text += render(conv, store, ' وعندي شغل لك إذا حاب{|ة}.');
   }
   return { text, actions, suggestions: suggestionsFor(conv, w), mood: 'happy' };
 }
@@ -264,7 +273,7 @@ function offerJob(conv: Conversation, w: BrainWorld, id: JobId): { text: string;
   const block = store.jobBlock(id);
   if (block === 'closed') return { text: render(conv, store, pick(rng, def.lines.closed)), ok: false };
   if (block === 'done') return { text: render(conv, store, pick(rng, def.lines.doneToday)), ok: false };
-  if (block === 'locked') return { text: render(conv, store, 'تحتاج{|ين} أول شي تشتري{|ن} بسطة. رحيم بالبقالة يبيعها.'), ok: false };
+  if (block === 'locked') return { text: render(conv, store, store.lockText(id)), ok: false };
   const base = job(id).pay;
   const pay = formatMoney(store.payFor(id, base) * (id !== 'errand' && job(id).family && store.has('gift') ? 2 : 1));
   if (id === 'errand') {
@@ -501,6 +510,22 @@ function respondNpc(conv: Conversation, a: Analysis, w: BrainWorld, def: NpcDef)
 function businessReply(conv: Conversation, a: Analysis, w: BrainWorld, def: NpcDef, say: (line: string, vars?: Record<string, string | number>) => void, actions: Action[]): 'handled' | null {
   const { store } = w;
   const buying = a.has('buy', 0.4) || a.has('accept') || a.has('ask_price');
+
+  if (def.id === 'partner' && INVEST_WORDS.find(a.variants).length && !a.has('decline')) {
+    const active = store.s.investments;
+    say('عندي ثلاث شراكات: ' + DEALS.map((d) => `${d.name} بـ${formatMoney(d.cost)} وتاخذ ${formatMoney(d.perDay)} كل يوم لمدة ${d.days} يوم`).join('، ') + '. شوف{|ي} واختار{|ي}.');
+    if (active.length) say('وعندك الحين ' + active.map((i) => `${i.name} (باقي ${i.daysLeft} يوم)`).join(' و') + '.');
+    actions.push({ type: 'openShop', shop: 'deals' });
+    return 'handled';
+  }
+  if (def.id === 'hr' && RANK_WORDS.find(a.variants).length) {
+    const r = store.companyRank;
+    const shifts = store.s.stats.companyShifts ?? 0;
+    const next = COMPANY_RANKS[r + 1];
+    if (!store.s.flags.companyHired) say('أول شي مقابلة قصيرة، وبعدها تبدأ{|ين} متدرب{|ة} بالاستقبال. كل ما تشتغل{|ين} ورديات أكثر تترقى{|ن} والراتب يزيد.');
+    else say(`رتبتك الحين «${COMPANY_RANKS[r].title}»` + (next ? `، وباقي لك ${next.shifts - shifts} ورديات وتصير{|ين} «${next.title}» والراتب يزيد.` : '، أعلى رتبة عندنا. ما شاء الله عليك!'));
+    return 'handled';
+  }
 
   if (def.id === 'mum' && store.s.errand) {
     if (hasErrandItems(store)) {

@@ -160,9 +160,18 @@ export type JobId =
   | 'barber'
   | 'online'
   | 'stall'
-  | 'recycle';
+  | 'recycle'
+  | 'sweep'
+  | 'dishes'
+  | 'tidy'
+  | 'laundry'
+  | 'coffee'
+  | 'reception'
+  | 'sales'
+  | 'accounting'
+  | 'trade';
 
-export type NpcId = 'mum' | 'dad' | 'grandpa' | 'grocer' | 'karak' | 'shawarma' | 'carwash' | 'umali' | 'ali' | 'hamad' | 'electro' | 'barber';
+export type NpcId = 'mum' | 'dad' | 'grandpa' | 'grocer' | 'karak' | 'shawarma' | 'carwash' | 'umali' | 'ali' | 'hamad' | 'electro' | 'barber' | 'hr' | 'partner';
 
 export interface JobDef {
   id: JobId;
@@ -185,16 +194,19 @@ export interface JobDef {
   need: string;
   phrases: string[];
   family?: boolean;
+  /** A job at the company: needs the interview, and `rank` once promoted. */
+  company?: boolean;
+  rank?: number;
 }
 
 export const JOBS: JobDef[] = [
   { id: 'plants', title: 'سقاية الزرع', employer: 'mum', place: 'home', hours: [6, 21], daily: 1, pay: 20, summary: 'اسقِ الستة أصص في حوش البيت', task: 'تسقي الزرع اللي بالحوش', need: 'يسقي الزرع', phrases: ['الزرع', 'سقي', 'اسقي', 'النباتات', 'الورد'], family: true },
-  { id: 'trash', title: 'طلّع الزبالة', employer: 'mum', place: 'home', hours: [6, 23], daily: 1, pay: 10, summary: 'شيل كيسين الزبالة للحاوية برا', task: 'تطلع أكياس الزبالة للحاوية', need: 'يطلع الزبالة', phrases: ['الزباله', 'زباله', 'القمامه'], family: true },
-  { id: 'errand', title: 'مقاضي البيت', employer: 'mum', place: 'grocery', hours: [7, 22], daily: 1, pay: 15, summary: 'اشترِ أغراض البيت من البقالة وارجع', task: 'تجيب أغراض من البقالة', need: 'يجيب أغراض البيت من البقالة', phrases: ['مقاضي', 'اغراض', 'المقاضي', 'تسوق', 'مشوار'], family: true },
+  { id: 'trash', title: 'طلّع الزبالة', employer: 'mum', place: 'home', hours: [6, 23], daily: 1, pay: 15, summary: 'شيل كيسين الزبالة للحاوية برا', task: 'تطلع أكياس الزبالة للحاوية', need: 'يطلع الزبالة', phrases: ['الزباله', 'زباله', 'القمامه'], family: true },
+  { id: 'errand', title: 'مقاضي البيت', employer: 'mum', place: 'grocery', hours: [7, 22], daily: 1, pay: 20, summary: 'اشترِ أغراض البيت من البقالة وارجع', task: 'تجيب أغراض من البقالة', need: 'يجيب أغراض البيت من البقالة', phrases: ['مقاضي', 'اغراض', 'المقاضي', 'تسوق', 'مشوار'], family: true },
   { id: 'cashier', title: 'كاشير بالبقالة', employer: 'grocer', place: 'grocery', hours: [7, 24], pay: 60, summary: 'احسب حساب الزباين ورجّع الباقي صح', task: 'توقف على الكاشير وتحاسب الزباين', need: 'يوقف على الكاشير', phrases: ['كاشير', 'الكاشير', 'حساب', 'تحاسب', 'الزباين'] },
   { id: 'karak', title: 'تحضير الكرك', employer: 'karak', place: 'karak', hours: [6, 25], pay: 50, summary: 'حضّر طلبات الكرك والشاي حسب الطلب', task: 'تحضر كرك للزباين', need: 'يساعده بتحضير الكرك', phrases: ['كرك', 'شاي', 'تحضير', 'اكواب', 'قهوه'] },
   { id: 'delivery', title: 'توصيل طلبات', employer: 'shawarma', place: 'shawarma', hours: [11, 25], pay: 25, summary: 'وصّل الطلبات للبيوت قبل ما تبرد', task: 'توصل الطلبات للبيوت', need: 'يوصل الطلبات للبيوت', phrases: ['توصيل', 'وصل', 'دليفري', 'طلبات', 'delivery'] },
-  { id: 'perfume', title: 'مساعدة أبوي بالعطور', employer: 'dad', place: 'perfume', hours: [9, 23], pay: 70, summary: 'اخلط العطر اللي يطلبه الزبون', task: 'تساعدني مع الزباين وتخلط لهم العطور', need: 'يساعده مع زباين العطور', phrases: ['عطر', 'عطور', 'المحل', 'تخلط', 'دهن عود'], family: true },
+  { id: 'perfume', title: 'مساعدة أبوي بالعطور', employer: 'dad', place: 'perfume', hours: [15, 24], pay: 70, summary: 'اخلط العطر اللي يطلبه الزبون', task: 'تساعدني مع الزباين وتخلط لهم العطور', need: 'يساعده مع زباين العطور', phrases: ['عطر', 'عطور', 'المحل', 'تخلط', 'دهن عود'], family: true },
   { id: 'carwash', title: 'غسيل سيارات', employer: 'carwash', place: 'carwash', hours: [7, 22], pay: 30, summary: 'نظّف كل البقع عن السيارة قبل ما يخلص الوقت', task: 'تغسل سيارات الزباين', need: 'يغسل سيارات الزباين', phrases: ['غسيل', 'سيارات', 'تغسل', 'سياره', 'تلميع'] },
   { id: 'tutor', title: 'تدريس علي', employer: 'umali', place: 'umali', hours: [15, 21], daily: 1, pay: 35, summary: 'ساعد علي بواجب الرياضيات', task: 'تدرس علي رياضيات شوي', need: 'يدرّس علي رياضيات', phrases: ['تدريس', 'درس', 'واجب', 'رياضيات', 'تدرس', 'علي'] },
   { id: 'hamadcar', title: 'غسيل سيارة العم حمد', employer: 'hamad', place: 'hamad', hours: [7, 19], daily: 1, pay: 40, summary: 'اغسل اللاندكروزر البيضا قدام بيته', task: 'تغسل سيارتي', need: 'يغسل سيارته', phrases: ['سيارتك', 'السياره', 'غسيل', 'اللاندكروزر', 'تغسل'] },
@@ -202,6 +214,48 @@ export const JOBS: JobDef[] = [
   { id: 'online', title: 'شغل أونلاين', employer: null, place: 'home', hours: [0, 24], pay: 30, summary: 'من اللابتوب: إدخال بيانات، تدقيق، ترجمة، تصميم', task: 'تشتغل أونلاين', need: 'يشتغل أونلاين', phrases: ['اونلاين', 'انترنت', 'لابتوب', 'كمبيوتر', 'فريلانس', 'online'] },
   { id: 'stall', title: 'البيع على البسطة', employer: null, place: 'stall', hours: [8, 23], pay: 40, requires: 'stall', summary: 'اشترِ بالجملة من البقالة وبِع بالمفرد', task: 'تبيع على البسطة', need: 'يبيع على البسطة', phrases: ['بسطه', 'ابيع', 'بيع', 'البسطه'] },
   { id: 'recycle', title: 'إعادة التدوير', employer: null, place: 'recycle', hours: [0, 24], pay: 1, summary: 'اجمع العلب الفاضية من الشارع وحطها بالآلة', task: 'تجمع العلب', need: 'يجمع العلب', phrases: ['تدوير', 'علب', 'قناني'] },
+  // Inside the house.
+  { id: 'sweep', title: 'كنس البيت', employer: 'mum', place: 'home', hours: [6, 22], daily: 1, pay: 20, summary: 'كنّس الغبار من الصالة والغرف', task: 'تكنس البيت', need: 'يكنس البيت', phrases: ['كنس', 'اكنس', 'تكنس', 'تنظيف البيت', 'نظف البيت', 'انظف البيت', 'المكنسه', 'غبار'], family: true },
+  { id: 'dishes', title: 'غسيل المواعين', employer: 'mum', place: 'home', hours: [7, 23], daily: 2, pay: 18, summary: 'اغسل الصحون والقدور بالمطبخ', task: 'تغسل المواعين', need: 'يغسل المواعين', phrases: ['صحون', 'الصحون', 'مواعين', 'المواعين', 'اغسل الصحون', 'جلي', 'المطبخ'], family: true },
+  { id: 'tidy', title: 'ترتيب غرفتك', employer: 'mum', place: 'home', hours: [6, 22], daily: 1, pay: 15, summary: 'رجّع الأغراض المرمية بغرفتك لمكانها', task: 'ترتب غرفتك', need: 'يرتب غرفته', phrases: ['رتب', 'ترتيب', 'ارتب', 'غرفتي', 'الغرفه', 'غرفتك', 'العابي', 'اغراضي'], family: true },
+  { id: 'laundry', title: 'ترتيب الغسيل', employer: 'mum', place: 'home', hours: [7, 21], daily: 1, pay: 15, summary: 'وزّع الملابس النظيفة على دواليب العيلة', task: 'تطوي الغسيل وترتبه بالدواليب', need: 'يرتب الغسيل', phrases: ['غسيل', 'الغسيل', 'ملابس', 'الملابس', 'هدوم', 'تطوي', 'اطوي'], family: true },
+  { id: 'coffee', title: 'ضيافة القهوة بالمجلس', employer: 'dad', place: 'home', hours: [6, 15], daily: 1, pay: 25, summary: 'صب القهوة العربية للضيوف بالترتيب الصح', task: 'تصب القهوة للضيوف بالمجلس', need: 'يصب القهوة للضيوف', phrases: ['ضيافه', 'صب القهوه', 'اصب القهوه', 'الضيوف', 'دله', 'الدله', 'فناجين', 'المجلس'], family: true },
+  // The company tower.
+  { id: 'reception', title: 'موظف استقبال', employer: 'hr', place: 'company', hours: [8, 18], pay: 45, company: true, summary: 'رد على المكالمات وحوّلها للقسم الصح', task: 'ترد على مكالمات الشركة وتحولها للقسم الصح', need: 'يرد على مكالمات الشركة', phrases: ['استقبال', 'الاستقبال', 'مكالمات', 'سنترال', 'رد على التلفون'] },
+  { id: 'sales', title: 'مندوب مبيعات', employer: 'hr', place: 'company', hours: [9, 21], pay: 65, company: true, rank: 1, summary: 'اسمع الزبون واقترح له المنتج اللي يناسبه', task: 'تبيع منتجات الشركة للزباين', need: 'يبيع منتجات الشركة', phrases: ['مبيعات', 'المبيعات', 'مندوب', 'مسوق', 'تسويق', 'اسوق'] },
+  { id: 'accounting', title: 'محاسب', employer: 'hr', place: 'company', hours: [8, 18], pay: 95, company: true, rank: 2, summary: 'احسب الفواتير مع الضريبة بدقة', task: 'تراجع فواتير الشركة وتحسب الضريبة', need: 'يراجع الفواتير', phrases: ['محاسب', 'محاسبه', 'المحاسبه', 'فواتير', 'حسابات', 'الضريبه'] },
+  { id: 'trade', title: 'صفقة مع أبو راشد', employer: 'partner', place: 'karak', hours: [9, 22], daily: 2, pay: 80, summary: 'اشترِ بضاعة بسعر زين وبيعها للمحلات، والربح بالنص', task: 'تشتغل معي بصفقة تجارة والربح بيننا بالنص', need: 'يشتغل معه بالتجارة', phrases: ['تجاره', 'صفقه', 'صفقات', 'شريك', 'شراكه', 'اشتغل معك', 'تاجر', 'بضاعه'] },
+];
+
+/** Ranks at the company: shifts needed and pay multiplier. */
+export const COMPANY_RANKS = [
+  { title: 'متدرب', shifts: 0, pay: 1 },
+  { title: 'موظف', shifts: 4, pay: 1.3 },
+  { title: 'مشرف', shifts: 12, pay: 1.7 },
+  { title: 'مدير قسم', shifts: 25, pay: 2.2 },
+];
+
+export function companyRank(shifts: number): number {
+  let r = 0;
+  COMPANY_RANKS.forEach((k, i) => shifts >= k.shifts && (r = i));
+  return r;
+}
+
+/** Partnerships with Abu Rashid: put money in, get a share every morning. */
+export interface Deal {
+  id: string;
+  name: string;
+  icon: string;
+  cost: number;
+  perDay: number;
+  days: number;
+  pitch: string;
+}
+
+export const DEALS: Deal[] = [
+  { id: 'karakcart', name: 'عربة كرك متنقلة', icon: '☕', cost: 300, perDay: 30, days: 15, pitch: 'عربة كرك عند المدارس والدوائر. تحط 300 وتاخذ 30 كل يوم لمدة 15 يوم.' },
+  { id: 'eshop', name: 'متجر عطور أونلاين', icon: '🛍️', cost: 1000, perDay: 95, days: 15, pitch: 'نبيع عطور أبوك أونلاين وأنا أتكفل بالتوصيل. تحط 1000 وتاخذ 95 كل يوم لمدة 15 يوم.' },
+  { id: 'truck', name: 'شاحنة توزيع', icon: '🚚', cost: 3000, perDay: 270, days: 15, pitch: 'شاحنة توزع مي وعصير على البقالات. تحط 3000 وتاخذ 270 كل يوم لمدة 15 يوم.' },
 ];
 
 export const JOB_BY_ID = new Map(JOBS.map((j) => [j.id, j]));

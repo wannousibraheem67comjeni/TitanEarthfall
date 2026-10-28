@@ -9,7 +9,7 @@ import { JOB_BY_ID, UPGRADE_BY_ID, type JobId, type NpcId, type UpgradeId } from
 import type { Store } from '../game/state';
 import { PLACE_BY_ID, type PlaceId } from '../world/layout';
 import { formatClock } from './brain';
-import { guideCatalogue, guideRespond, type GuideAction, type GuideReply } from './guide';
+import { guideCatalogue, guideRespond, MOVE_DIRS, type GuideAction, type GuideReply, type MoveDir } from './guide';
 import type { LlmBackend, LlmTurn } from './llm';
 import { NPC_BY_ID } from './npcs';
 
@@ -30,6 +30,10 @@ export function actionKey(a: GuideAction): string {
       return `open_phone:${a.tab}`;
     case 'buy':
       return `buy:${a.upgrade}`;
+    case 'move':
+      return `move:${a.dir}`;
+    case 'openBoard':
+      return 'open_board';
     default:
       return a.type;
   }
@@ -55,6 +59,12 @@ export function parseActionKey(key: string): GuideAction | null {
       return (TABS as readonly string[]).includes(x) ? { type: 'openPhone', tab: x as (typeof TABS)[number] } : null;
     case 'buy':
       return UPGRADE_BY_ID.has(x as UpgradeId) ? { type: 'buy', upgrade: x as UpgradeId } : null;
+    case 'move':
+      return (MOVE_DIRS as string[]).includes(x) ? { type: 'move', dir: x as MoveDir } : null;
+    case 'open_board':
+      return { type: 'openBoard' };
+    case 'invest':
+      return { type: 'invest' };
     case 'sleep':
       return { type: 'sleep' };
     case 'stop':
@@ -117,6 +127,7 @@ export class GuideBrain {
       '- go_place:<placeId> توديه لمكان؛ talk:<npcId> توديه لشخص ويكلمه',
       '- set_goal:<amount>:<days>[:<jobId>] لما يذكر مبلغ يبي يجمعه (الشهر 30 يوم، الأسبوع 7، اليوم 1)',
       '- open_phone:<home|jobs|shop|wallet|awards|settings>؛ buy:<upgradeId> لما يبي يشتري وفلوسه تكفي؛ sleep لما يبي ينام بالليل؛ stop لما يقول وقف',
+      '- move:<forward|back|left|right|out|in> لما يقول امشي لقدام/ارجع/يمين/يسار/اطلع برا/ادخل البيت؛ open_board لما يسأل عن شغل على قده (يوديه للوحة الوظائف)؛ invest لما يبي يستثمر (يوديه لأبو راشد)',
       'القواعد: رد بلهجة خليجية بسيطة وودودة، جملتين أو ثلاث قصيرة تنقرأ بصوت، بدون إيموجي. اشرح بالأرقام كيف يوصل لهدفه لما يذكر مبلغ. لا تعد بفلوس غير اللي بالشغل. إذا ما فهمت اسأله سؤال قصير واقترح أمثلة.',
       'أجب بكائن JSON فقط: {"reply": "...", "actions": ["go_job:online"], "mood": "happy"}',
     ].join('\n');

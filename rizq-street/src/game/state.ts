@@ -6,7 +6,7 @@
 import { Emitter } from '../core/events';
 import { clamp } from '../core/math';
 import type { Gender } from '../lang/arabic';
-import { isOpenAt, job, skillMultiplier, xpForNext, UPGRADE_BY_ID, type ItemId, type JobId, type NpcId, type UpgradeId } from './catalog';
+import { COMPANY_RANKS, companyRank, DEALS, isOpenAt, job, skillMultiplier, xpForNext, UPGRADE_BY_ID, type ItemId, type JobId, type NpcId, type UpgradeId } from './catalog';
 
 export const SAVE_VERSION = 1;
 const SAVE_KEY = 'rizq-street.save.v1';
@@ -67,6 +67,8 @@ export interface GameState {
   errand: { items: ItemId[]; cash: number } | null;
   /** A savings goal the player set by asking the guide ("1000 درهم بالشهر"). */
   goal: { amount: number; days: number; startDay: number; startEarned: number; job: JobId | null } | null;
+  /** Partnerships with Abu Rashid that pay a share into the bank every morning. */
+  investments: { id: string; name: string; perDay: number; daysLeft: number }[];
   pos: { x: number; z: number; heading: number } | null;
 }
 
@@ -105,6 +107,7 @@ export function newState(name: string, gender: Gender): GameState {
     ledger: [],
     errand: null,
     goal: null,
+    investments: [],
     pos: null,
   };
 }
@@ -154,8 +157,14 @@ export class Store extends Emitter<StoreEvents> {
     // Savings grow: 1% a day on the bank balance, up to 100 dirhams.
     const interest = this.s.bank >= 20 ? Math.min(100, Math.floor(this.s.bank * 0.01)) : 0;
     if (interest > 0) this.earn(interest, 'أرباح التوفير', { bank: true, silent: true });
-    const passive = this.s.upgrades.shop ? 300 : 0;
+    let passive = this.s.upgrades.shop ? 300 : 0;
     if (passive > 0) this.earn(passive, 'دخل محلك', { bank: true, silent: true });
+    for (const inv of this.s.investments) {
+      this.earn(inv.perDay, `أرباح شراكة: ${inv.name}`, { bank: true, silent: true });
+      passive += inv.perDay;
+      inv.daysLeft--;
+    }
+    this.s.investments = this.s.investments.filter((i) => i.daysLeft > 0);
     this.emit('day', { day: this.s.day, interest, passive });
   }
 
@@ -250,9 +259,24 @@ export class Store extends Emitter<StoreEvents> {
     return this.s.skills[id]?.level ?? 1;
   }
 
-  /** Pay for a round of work: base × skill multiplier, rounded to whole dirhams. */
+  /** Pay for a round of work: base × skill multiplier (× company rank), in whole dirhams. */
   payFor(id: JobId, base: number): number {
-    return Math.round(base * skillMultiplier(this.level(id)));
+    return Math.round(base * skillMultiplier(this.level(id)) * (job(id).company ? COMPANY_RANKS[this.companyRank].pay : 1));
+  }
+
+  /** 0 متدرب, 1 موظف, 2 مشرف, 3 مدير قسم. */
+  get companyRank(): number {
+    return companyRank(this.s.stats.companyShifts ?? 0);
+  }
+
+  /** Put money into one of Abu Rashid's partnerships (cash from the wallet). */
+  invest(id: string): 'ok' | 'poor' | 'active' {
+    const d = DEALS.find((x) => x.id === id)!;
+    if (this.s.investments.some((i) => i.id === id)) return 'active';
+    if (!this.spend(d.cost, `شراكة: ${d.name}`)) return 'poor';
+    this.s.investments.push({ id, name: d.name, perDay: d.perDay, daysLeft: d.days });
+    this.bump('investments');
+    return 'ok';
   }
 
   /** Tips scale with reputation: 0.5× at 0, 1× at 50, 1.5× at 100. */
@@ -297,8 +321,20 @@ export class Store extends Emitter<StoreEvents> {
   jobBlock(id: JobId): 'closed' | 'done' | 'locked' | null {
     const def = job(id);
     if (def.requires && !this.s.upgrades[def.requires]) return 'locked';
+    if (def.rank && this.companyRank < def.rank) return 'locked';
     if (def.daily !== undefined && this.timesToday(id) >= def.daily) return 'done';
     return isOpenAt(def.hours, this.hour) ? null : 'closed';
+  }
+
+  /** What a locked job needs, as a line template ({|ين} forms). */
+  lockText(id: JobId): string {
+    const def = job(id);
+    if (def.requires && !this.s.upgrades[def.requires]) {
+      const u = UPGRADE_BY_ID.get(def.requires)!;
+      return def.requires === 'stall' ? 'للبيع تحتاج{|ين} بسطة أول، رحيم بالبقالة يبيعها بـ200 درهم.' : `تحتاج{|ين} ${u.name} أول.`;
+    }
+    if (def.rank) return `${def.title} تحتاج رتبة «${COMPANY_RANKS[def.rank].title}» بالشركة. اشتغل{|ي} بالاستقبال وتترقى{|ن}، باقي لك ${COMPANY_RANKS[def.rank].shifts - (this.s.stats.companyShifts ?? 0)} ورديات.`;
+    return '';
   }
 
   // -- reputation, people ----------------------------------------------------

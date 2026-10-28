@@ -23,6 +23,19 @@ const EXTRA: Pt[] = [
   { x: -70, z: 26.2 },
   { x: -79, z: 22 },
   { x: -60, z: 17 },
+  // Inside the house: hall, my room, kitchen, through the doorways.
+  { x: -70, z: 29.6 },
+  { x: -70, z: 33.8 },
+  { x: -70, z: 37.2 },
+  { x: -72.4, z: 33.8 },
+  { x: -75.6, z: 33.8 },
+  { x: -77.6, z: 30.4 },
+  { x: -77.4, z: 36.4 },
+  { x: -67.6, z: 33.8 },
+  { x: -64.4, z: 33.8 },
+  { x: -62.6, z: 31 },
+  { x: -62.8, z: 35.6 },
+  { x: -61.6, z: 39.6 },
   // Grandpa's majlis.
   { x: -104, z: 10.5 },
   // Mosque plaza.

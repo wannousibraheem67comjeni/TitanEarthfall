@@ -26,6 +26,8 @@ export class NpcEntity {
   talking = false;
   activity: Activity = 'none';
   present = true;
+  /** At the second spot (home) rather than the usual one. */
+  atHome = false;
   private wanderT = 0;
   private wanderTarget: Vector3 | null = null;
   private readonly ball: Mesh | null = null;
@@ -49,12 +51,26 @@ export class NpcEntity {
     }
   }
 
+  /** Where the character stands right now: the usual post, or home. */
+  get spot(): { x: number; z: number; facing: number } {
+    return this.atHome && this.def.home ? this.def.home : this.def;
+  }
+
   get sitting(): boolean {
     return this.def.id === 'grandpa';
   }
 
   update(dt: number, hour: number, player: Vector3, focused: boolean): void {
-    this.present = !this.def.hours || isOpenAt(this.def.hours, hour);
+    const home = this.def.home && isOpenAt(this.def.home.hours, hour) ? this.def.home : null;
+    const spot = home ?? this.def;
+    if (this.atHome !== !!home) {
+      // Moved between the shop and the house while nobody was looking.
+      this.atHome = !!home;
+      this.pos.set(spot.x, groundHeight(spot.x, spot.z), spot.z);
+      this.heading = spot.facing;
+      this.char.root.position.copy(this.pos);
+    }
+    this.present = !!home || !this.def.hours || isOpenAt(this.def.hours, hour);
     this.char.root.visible = this.present;
     if (this.ball) this.ball.visible = this.present;
     if (!this.present) return;
@@ -96,12 +112,12 @@ export class NpcEntity {
     } else if (focused || dist < 5) {
       // Turn toward the player when they come close; the whole body when talking.
       if (!this.sitting && (focused || dist < 2.6)) this.heading = dampAngle(this.heading, toPlayer, 5, dt);
-      else if (!focused && !this.sitting && Math.abs(angleDelta(this.heading, this.def.facing)) > 0.05 && dist > 3.5) this.heading = dampAngle(this.heading, this.def.facing, 2, dt);
+      else if (!focused && !this.sitting && Math.abs(angleDelta(this.heading, spot.facing)) > 0.05 && dist > 3.5) this.heading = dampAngle(this.heading, spot.facing, 2, dt);
     } else if (!this.sitting) {
-      this.heading = dampAngle(this.heading, this.def.facing, 2, dt);
+      this.heading = dampAngle(this.heading, spot.facing, 2, dt);
       // Drift back to the post.
-      const hx = this.def.x - this.pos.x;
-      const hz = this.def.z - this.pos.z;
+      const hx = spot.x - this.pos.x;
+      const hz = spot.z - this.pos.z;
       const hd = Math.hypot(hx, hz);
       if (hd > 0.2) {
         speed = Math.min(1.4, hd);

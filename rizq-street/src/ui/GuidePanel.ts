@@ -1,7 +1,8 @@
 /**
- * «سند» on screen: a big microphone button and a text box to ask for anything
- * ("أبي شغل أونلاين يجيب 1000 درهم بالشهر"), a speech bubble with the answer and
- * suggestion chips, and the auto-walk chip with "take me there now" and stop.
+ * «سند» on screen: one big microphone button to ask for anything ("أبي شغل أونلاين
+ * يجيب 1000 درهم بالشهر"), a speech bubble with the answer and suggestion chips, and
+ * the auto-walk chip with "take me there now" and stop. The text box only appears when
+ * there is no microphone (or on Enter), so the screen keeps a single button.
  */
 import { h } from './dom';
 
@@ -15,7 +16,6 @@ export interface GuideHooks {
 export class GuidePanel {
   readonly el = h('div.guide');
   readonly micBtn = h('button.guide-mic', { type: 'button', title: 'اضغط وتكلم مع سند (V)' }, h('span.ico', '🎤'), h('span.lbl', 'تكلم')) as HTMLButtonElement;
-  readonly kbBtn = h('button.guide-kb', { type: 'button', title: 'اكتب لسند (Enter)' }, '⌨️') as HTMLButtonElement;
   private readonly input = h('input.field', { type: 'text', id: 'guide-input', autocomplete: 'off', enterkeyhint: 'send', placeholder: 'قول أو اكتب شو تبي… مثلاً: أبي شغل أونلاين يجيب 1000 درهم بالشهر' }) as HTMLInputElement;
   private readonly bar = h('form.guide-bar');
   private readonly bubble = h('div.guide-bubble');
@@ -30,7 +30,7 @@ export class GuidePanel {
   constructor(
     parent: HTMLElement,
     private readonly hooks: GuideHooks,
-    private readonly touch: boolean,
+    touch: boolean,
   ) {
     const close = h('button.x', { type: 'button', title: 'إخفاء', onclick: () => this.hideBubble() }, '✕');
     this.bubble.append(h('div.guide-head', h('span.guide-avatar', 'س'), h('b', 'سند'), h('span.muted', 'مساعدك بالفريج'), close), this.you, this.text, this.chips);
@@ -43,35 +43,31 @@ export class GuidePanel {
     this.walk.append(h('span', '🚶'), this.walkText, h('button.btn.warm', { type: 'button', id: 'guide-warp', onclick: () => hooks.warp() }, '⏩ وصّلني الحين'), h('button.btn.secondary', { type: 'button', title: 'وقف المشي', onclick: () => hooks.stopWalk() }, '✕'));
     this.walk.hidden = true;
     const send = h('button.guide-send', { type: 'submit', title: 'أرسل' }, '➤');
-    this.bar.append(this.input, send);
-    if (!touch) this.bar.prepend(this.micBtn);
+    this.bar.append(this.input, send, h('button.x', { type: 'button', title: 'إغلاق', onclick: () => this.blurInput() }, '✕'));
     this.bar.addEventListener('submit', (e) => {
       e.preventDefault();
       const t = this.input.value.trim();
       if (!t) return;
       this.input.value = '';
-      if (this.touch) this.closeTyping();
+      this.blurInput();
       hooks.submit(t);
     });
     this.input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        this.input.blur();
-        this.closeTyping();
-      }
+      if (e.key === 'Escape') this.blurInput();
     });
     this.micBtn.addEventListener('click', () => hooks.mic());
-    this.kbBtn.addEventListener('click', () => this.focusInput());
     this.el.append(this.bubble, this.walk, this.bar);
+    if (!touch) this.el.append(h('div.guide-dock', this.micBtn));
     this.el.classList.toggle('touch', touch);
     parent.append(this.el);
   }
 
   setVisible(on: boolean): void {
     this.el.hidden = !on;
-    this.micBtn.hidden = this.kbBtn.hidden = !on;
+    this.micBtn.hidden = !on;
   }
 
-  /** The HUD's "press E" prompt sits in the dock on desktop so nothing overlaps. */
+  /** The HUD's "press E" prompt sits above the mic on desktop so nothing overlaps. */
   dock(el: HTMLElement): void {
     this.el.insertBefore(el, this.bar);
   }
@@ -106,7 +102,7 @@ export class GuidePanel {
 
   /** A hint that needs the text box (no mic here): open it and explain. */
   focusInput(hint?: string): void {
-    if (this.touch) this.el.classList.add('typing');
+    this.el.classList.add('typing');
     if (hint) this.say(hint, [], false);
     this.input.focus();
   }

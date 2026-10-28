@@ -27,10 +27,12 @@ import {
 import { Rng } from '../core/rng';
 import { Batcher, worldBox } from './batch';
 import { Colliders } from './collision';
+import { buildHouse, type HouseRefs } from './house';
 import {
   ALLEY_HOUSES,
   BOUNDS,
   CARWASH,
+  COMPANY,
   HOME,
   MOSQUE,
   PARK,
@@ -52,6 +54,7 @@ export interface WorldRefs {
   hamadCar: Group;
   washCar: Group;
   skyline: Skyline;
+  house: HouseRefs;
 }
 
 const rng = new Rng(2024);
@@ -146,7 +149,7 @@ function shop(b: Batcher, c: Colliders, lot: ShopLot, variant: number): void {
   for (let f = 1; f < lot.floors; f++) b.boxMinMax(lot.minX - 0.05, groundH + (f - 1) * 3.4 - 0.12, front, lot.maxX + 0.05, groundH + (f - 1) * 3.4 + 0.08, front + 0.12, M.trim('#d8cdb8'));
 
   // Sign board above the shop front, lit at night.
-  const signTex = T.signTexture(lot.sign, lot.signColor, lot.signText, kind === 'grocery' ? 'AL NOOR GROCERY' : kind === 'karak' ? 'FREEJ KARAK' : kind === 'shawarma' ? 'AL SHAM SHAWARMA' : kind === 'perfume' ? 'ABU SALEM PERFUMES' : kind === 'barber' ? 'ELEGANCE SALON' : 'MOBILE WORLD');
+  const signTex = T.signTexture(lot.sign, lot.signColor, lot.signText, kind === 'grocery' ? 'AL NOOR GROCERY' : kind === 'karak' ? 'FREEJ KARAK' : kind === 'shawarma' ? 'AL SHAM SHAWARMA' : kind === 'perfume' ? 'ABU SALEM PERFUMES' : kind === 'barber' ? 'ELEGANCE SALON' : kind === 'company' ? 'AL RIZQ GROUP' : 'MOBILE WORLD');
   const signMat = registerNightGlow(new MeshStandardMaterial({ map: signTex, emissiveMap: signTex, emissive: new Color('#ffffff'), emissiveIntensity: 0.25, roughness: 0.4 }), 1.0);
   const sw = Math.min(w - 1.6, 13);
   b.boxMinMax((lot.minX + lot.maxX) / 2 - sw / 2 - 0.1, 3.75, front, (lot.minX + lot.maxX) / 2 + sw / 2 + 0.1, 5.15, front + 0.25, solid(lot.signColor, 0.5));
@@ -235,7 +238,7 @@ function house(b: Batcher, c: Colliders, x0: number, z0: number, x1: number, z1:
   c.addBox(x0, z0, x1, z1, h + 1);
 }
 
-function villa(b: Batcher, c: Colliders, v: VillaLot, veg: P.Vegetation): void {
+function villa(b: Batcher, c: Colliders, v: VillaLot, veg: P.Vegetation): HouseRefs | null {
   const wallH = 2.6;
   const gx = v.gateX;
   // Front wall in two pieces around the gate.
@@ -249,10 +252,13 @@ function villa(b: Batcher, c: Colliders, v: VillaLot, veg: P.Vegetation): void {
   if (!v.open) c.addBox(gx - 1.8, v.minZ - 0.1, gx + 1.8, v.minZ + 0.1, 2.6);
   // Number plate.
   b.place(new PlaneGeometry(0.6, 0.3), textured(`plate${v.number}`, T.plateTexture(v.number), { roughness: 0.5 }), gx + 2.9, 2.0, v.minZ - 0.19, 0, { cast: false });
-  house(b, c, v.minX + 3, v.minZ + 14, v.maxX - 3, v.maxZ - 2, v.house, v.trim, v.windTower);
+  // The family's own house (the open gate) can be walked into.
+  const refs = v.open ? buildHouse(b, c, v.house, v.trim) : null;
+  if (!v.open) house(b, c, v.minX + 3, v.minZ + 14, v.maxX - 3, v.maxZ - 2, v.house, v.trim, v.windTower);
   // Courtyard palms peeking over the wall.
   veg.palm(v.minX + 2.2, v.minZ + 3, 0.95);
   veg.palm(v.maxX - 2.2, v.minZ + 5, 1.05);
+  return refs;
 }
 
 function homeCourtyard(b: Batcher, veg: P.Vegetation): void {
@@ -273,6 +279,17 @@ function homeCourtyard(b: Batcher, veg: P.Vegetation): void {
   P.bench(b, -76, 26.6, Math.PI);
   veg.shrub(-66, 15.5, 0.8);
   veg.shrub(-74, 15.5, 0.8);
+}
+
+/** A notice board on two posts: «لوحة الوظائف», with pinned job ads. */
+function jobBoard(b: Batcher, c: Colliders, x: number, z: number): void {
+  for (const dx of [-1.15, 1.15]) b.place(new BoxGeometry(0.1, 2.4, 0.1), M.darkMetal(), x + dx, 1.2, z);
+  b.place(new BoxGeometry(2.4, 1.3, 0.08), solid('#b98a55', 0.9), x, 1.55, z);
+  const head = T.signTexture('لوحة الوظائف', '#1e7b4e', '#ffffff', 'JOBS');
+  b.place(new PlaneGeometry(2.4, 0.45), registerNightGlow(new MeshStandardMaterial({ map: head, emissiveMap: head, emissive: new Color('#ffffff'), emissiveIntensity: 0.25 }), 1), x, 2.45, z + 0.05, 0, { cast: false });
+  const papers = ['#fffaf0', '#fdf3c4', '#e8f4ff', '#ffe8e0', '#eaf7e6'];
+  for (let i = 0; i < 6; i++) b.place(new PlaneGeometry(0.5, 0.42), solid(papers[i % papers.length], 0.9), x - 0.85 + (i % 3) * 0.85, 1.85 - Math.floor(i / 3) * 0.6, z + 0.05, 0, { cast: false, rotZ: (i % 2 ? 1 : -1) * 0.05 });
+  c.addBox(x - 1.25, z - 0.12, x + 1.25, z + 0.12, 2.4);
 }
 
 // ---------------------------------------------------------------------------
@@ -559,7 +576,7 @@ export function buildWorld(scene: Scene): WorldRefs {
 
   SHOP_LOTS.forEach((lot, i) => shop(b, colliders, lot, i % 4));
   // Close the narrow gaps between neighbouring buildings so nobody slips behind them.
-  const northEdges = [MOSQUE.maxX, ...SHOP_LOTS.flatMap((l) => [l.minX, l.maxX]), 29];
+  const northEdges = [MOSQUE.maxX, ...SHOP_LOTS.flatMap((l) => [l.minX, l.maxX]), CARWASH.minX];
   for (let i = 0; i + 1 < northEdges.length; i += 2) {
     const [x0, x1] = [northEdges[i], northEdges[i + 1]];
     if (x1 - x0 > 0.05) {
@@ -575,23 +592,21 @@ export function buildWorld(scene: Scene): WorldRefs {
     const [x0, x1] = [southEdges[i], southEdges[i + 1]];
     if (x1 - x0 > 0.05 && !(x0 <= -22 && x1 >= -12)) wall(b, colliders, x0, 14, x1, 14, 2.6, '#e0d4bc', '#8a6a3f');
   }
-  for (const v of VILLA_LOTS) villa(b, colliders, v, veg);
+  let house: HouseRefs | null = null;
+  for (const v of VILLA_LOTS) house = villa(b, colliders, v, veg) ?? house;
   homeCourtyard(b, veg);
   mosque(b, colliders);
   carwash(b, colliders);
   park(b, colliders, veg);
   alley(b, colliders);
 
-  // Vacant lot fence, recycling machine and bus stop.
-  const fenceMat = solid('#9aa2aa', 0.5, 0.5);
-  for (let x = 29; x <= 50; x += 2.5) b.place(new BoxGeometry(0.08, 2, 0.08), fenceMat, x, 1, -10.8);
-  b.place(new BoxGeometry(21, 1.6, 0.03), solid('#c8cdd2', 0.6, 0.3), 39.5, 1.1, -10.8, 0, { cast: false });
-  colliders.addBox(28, -11, 50, -10.6, 2);
+  // Recycling machine and the job board in front of the company tower; the bus stop at the far end.
   colliders.addBox(-8, -36, 50, -24, 6);
   P.recycleMachine(b, 33, -9.6);
   colliders.addBox(32.2, -10.1, 33.8, -9.1, 2.2);
-  P.busStop(b, 41, -8.4);
-  colliders.addBox(37.4, -9.7, 44.6, -9.4, 2.6);
+  jobBoard(b, colliders, COMPANY.board.x, COMPANY.board.z);
+  P.busStop(b, 100, -8.4);
+  colliders.addBox(96.4, -9.7, 103.6, -9.4, 2.6);
 
   // Grandpa's majlis on the strip in front of his house.
   P.majlis(b, -104, 11.2);
@@ -675,8 +690,8 @@ export function buildWorld(scene: Scene): WorldRefs {
   colliders.addBox(CARWASH.bays[0].x - 1.0, CARWASH.bays[0].z - 2.4, CARWASH.bays[0].x + 1.0, CARWASH.bays[0].z + 2.4, 1.5);
 
   for (const o of veg.obstacles) colliders.addCircle(o.x, o.z, o.r);
-  scene.add(b.build(), veg.build(), lamps.build());
+  scene.add(b.build(), veg.build(), lamps.build(), house!.upper);
   const skyline = new Skyline();
   scene.add(skyline.group);
-  return { colliders, lamps: lamps.positions, plants, stall, hamadCar, washCar, skyline };
+  return { colliders, lamps: lamps.positions, plants, stall, hamadCar, washCar, skyline, house: house! };
 }

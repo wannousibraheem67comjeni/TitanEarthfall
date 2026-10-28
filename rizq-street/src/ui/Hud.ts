@@ -54,14 +54,13 @@ export class Hud {
   private readonly labelPool = new Map<string, HTMLDivElement>();
   readonly arrow = h('div.nav-arrow');
   private readonly arrowDist = h('span.dist');
-  readonly phoneBtn = h('button', { title: 'الجوال (Tab)' }, '📱', h('small', 'Tab'));
-  readonly talkBtn = h('button', { title: 'كلم أقرب شخص (T)' }, '💬', h('small', 'T'));
-  readonly mapBtn = h('button', { title: 'الخريطة (M)' }, '🗺️', h('small', 'M'));
   readonly phoneBadge = h('span.badge');
   private bigMap = false;
   private shownWallet = -1;
   onPrompt: (() => void) | null = null;
   onCancel: (() => void) | null = null;
+  /** Tapping the wallet opens the phone. */
+  onWallet: (() => void) | null = null;
   /** Clicking the big map at a street position (x, z); true when handled. */
   onMapPick: ((x: number, z: number) => boolean) | null = null;
   private readonly goalEl = h('div.goal');
@@ -74,7 +73,9 @@ export class Hud {
   ) {
     this.goalEl.append(this.goalText, h('span.bar', this.goalFill));
     this.goalEl.hidden = true;
-    this.walletEl.append(h('span.label', 'محفظتي'), h('div.amount', this.amountEl, h('small', 'درهم')), this.notesEl, h('div.bank', h('span', 'في البنك'), this.bankEl), this.goalEl);
+    this.walletEl.title = 'الجوال (Tab)';
+    this.walletEl.onclick = () => this.onWallet?.();
+    this.walletEl.append(h('span.label', 'محفظتي · 📱', this.phoneBadge), h('div.amount', this.amountEl, h('small', 'درهم')), this.notesEl, h('div.bank', h('span', 'في البنك'), this.bankEl), this.goalEl);
     const clock = h('div.chip.clock', this.dayEl, this.timeEl, h('span.rep', 'السمعة', h('span.bar', this.repFill)));
     this.objective.append(this.objText, this.objTimer, this.objCancel);
     this.objective.hidden = true;
@@ -83,9 +84,8 @@ export class Hud {
     this.prompt.hidden = true;
     this.prompt.onclick = () => this.onPrompt?.();
     this.staminaEl.append(h('span', 'النَّفَس'), h('span.bar', this.staminaFill), this.rideEl);
-    this.phoneBtn.append(this.phoneBadge);
+
     this.phoneBadge.hidden = true;
-    const toolbar = h('div.toolbar', this.talkBtn, this.mapBtn, this.phoneBtn);
     this.arrow.innerHTML = '<svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" fill="rgba(28,20,12,0.75)"/><path d="M22 8 L32 28 L22 23 L12 28 Z" fill="#ffd66b"/></svg>';
     this.arrow.append(this.arrowDist);
     this.arrow.hidden = true;
@@ -102,8 +102,7 @@ export class Hud {
       }
       this.toggleMap();
     };
-    this.mapBtn.onclick = () => this.toggleMap();
-    this.el.append(this.labels, this.walletEl, clock, this.map, this.objective, this.prompt, this.staminaEl, toolbar, this.toasts, this.arrow);
+    this.el.append(this.labels, this.walletEl, clock, this.map, this.objective, this.prompt, this.staminaEl, this.toasts, this.arrow);
     parent.append(this.el);
     store.on('money', () => this.refreshMoney(true));
     store.on('toast', (t) => this.toast(t.text, t.kind));

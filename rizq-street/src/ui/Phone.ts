@@ -110,10 +110,10 @@ export class Phone {
       h('div.muted', 'كلّم صاحب الشغل وقول «عندك شغل؟»، أو اضغط «دلّني» وأنا أحط لك علامة.'),
       ...JOBS.map((j) => {
         const block = st.jobBlock(j.id);
-        const pill = block === null ? h('span.pill.open', 'متاح الآن') : block === 'closed' ? h('span.pill.closed', `يفتح ${hoursText(j.hours)}`) : block === 'done' ? h('span.pill.done', 'خلص اليوم') : h('span.pill.locked', 'يحتاج بسطة');
+        const pill = block === null ? h('span.pill.open', 'متاح الآن') : block === 'closed' ? h('span.pill.closed', `يفتح ${hoursText(j.hours)}`) : block === 'done' ? h('span.pill.done', 'خلص اليوم') : h('span.pill.locked', j.company ? 'يحتاج ترقية' : 'يحتاج بسطة');
         const lvl = st.level(j.id);
         const xp = st.s.skills[j.id]?.xp ?? 0;
-        const boss = j.employer ? (j.employer === 'mum' ? 'أمك' : j.employer === 'dad' ? 'أبوك' : null) : null;
+        const boss = j.employer ? (j.employer === 'mum' ? 'أمك' : j.employer === 'dad' ? 'أبوك' : j.employer === 'hr' ? 'مجموعة الرزق' : j.employer === 'partner' ? 'أبو راشد' : null) : null;
         const actions = h('div.row');
         if (j.id === 'online' && st.has('phone')) actions.append(h('button.btn', { type: 'button', onclick: () => this.handlers.openOnline() }, 'اشتغل من الجوال'));
         actions.append(h('button.btn.secondary', { type: 'button', onclick: () => this.handlers.mark(j.place) }, 'دلّني 📍'));

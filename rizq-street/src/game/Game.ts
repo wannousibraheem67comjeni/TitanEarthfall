@@ -28,7 +28,7 @@ import { clamp } from '../core/math';
 import { Rng } from '../core/rng';
 import { DialogueManager, type Turn } from '../dialogue/DialogueManager';
 import { GuideBrain } from '../dialogue/GuideBrain';
-import type { GuideAction } from '../dialogue/guide';
+import type { GuideAction, MoveDir } from '../dialogue/guide';
 import { ApiBackend, ArtifactBackend, type LlmBackend } from '../dialogue/llm';
 import { NPCS } from '../dialogue/npcs';
 import { makePasserby } from '../dialogue/pedestrians';
@@ -38,7 +38,7 @@ import { analyze } from '../lang/intents';
 import { SpeechInput, SpeechOutput, MIC_ERROR_TEXT, type MicError, type VoiceProfile } from '../voice/speech';
 import { Character } from '../world/characters';
 import type { CircleCollider } from '../world/collision';
-import { BARBER_FLOOR, BOUNDS, DELIVERY_DOORS, HOME, PLACES, PLACE_BY_ID, STALL_SPOT, type DeliveryDoor, type PlaceId } from '../world/layout';
+import { BARBER_FLOOR, BOUNDS, COMPANY, DELIVERY_DOORS, HOME, HOUSE, insideHouse, PLACES, PLACE_BY_ID, STALL_SPOT, type DeliveryDoor, type PlaceId } from '../world/layout';
 import { solid } from '../world/materials';
 import { CAR_COLORS, makeTrashBag } from '../world/props';
 import { Sky } from '../world/sky';
@@ -51,7 +51,10 @@ import { Phone } from '../ui/Phone';
 import { TouchControls } from '../ui/TouchControls';
 import { h } from '../ui/dom';
 import { Atm, GroceryShop, UpgradeShop } from '../ui/minigames/Commerce';
+import { DealsBoard, JobBoard, TradeGame } from '../ui/minigames/Business';
 import { CashierGame } from '../ui/minigames/CashierGame';
+import { AccountingGame, InterviewGame, ReceptionGame, SalesGame } from '../ui/minigames/Company';
+import { CoffeeGame, DishesGame, LaundryGame } from '../ui/minigames/House';
 import { KarakGame } from '../ui/minigames/KarakGame';
 import { LaptopGame } from '../ui/minigames/LaptopGame';
 import { Overlay, type MiniEnv } from '../ui/minigames/Overlay';
@@ -59,7 +62,7 @@ import { PerfumeGame } from '../ui/minigames/PerfumeGame';
 import { StallGame } from '../ui/minigames/StallGame';
 import { TutorGame } from '../ui/minigames/TutorGame';
 import { CameraRig } from './CameraRig';
-import { isOpenAt, item, job, UPGRADE_BY_ID, type ItemId, type JobId, type NpcId, type UpgradeId } from './catalog';
+import { isOpenAt, item, job, JOBS, UPGRADE_BY_ID, type ItemId, type JobId, type NpcId, type UpgradeId } from './catalog';
 import { NpcEntity, Pedestrians, Traffic, type Walker } from './entities';
 import { Beacons, GroundItems, MoneyFx, Particles, type GroundItem } from './fx';
 import { Input } from './Input';
@@ -88,7 +91,8 @@ type WorldJob =
   | { kind: 'errand' }
   | { kind: 'delivery'; door: DeliveryDoor; limit: number; left: number; customer: Character | null; bag: Object3D }
   | { kind: 'wash'; job: 'carwash' | 'hamadcar'; car: Group; spots: Mesh[]; total: number; left: number }
-  | { kind: 'sweep'; piles: Mesh[] };
+  | { kind: 'sweep'; job: 'barber' | 'sweep'; piles: Mesh[] }
+  | { kind: 'tidy'; items: Mesh[]; held: number };
 
 type Talk = { kind: 'npc'; ent: NpcEntity } | { kind: 'walker'; w: Walker };
 
@@ -108,7 +112,7 @@ interface AutoWalk {
 }
 
 const SANAD: VoiceProfile = { gender: 'm', key: 'sanad', pitch: 1, rate: 1.03 };
-const GUIDE_SUGGESTIONS = ['أبي شغل أونلاين يجيب 1000 درهم بالشهر', 'ودني لأمي', 'وين أحسن شغل الحين؟', 'كم معي فلوس؟'];
+const GUIDE_SUGGESTIONS = ['أبي شغل أونلاين يجيب 1000 درهم بالشهر', 'ادخل البيت', 'شو في شغل على قدي؟', 'أبي أصير غني'];
 /** Where to stand to use the laptop on the desk in the courtyard. */
 const DESK_STAND = { x: -61.5, z: 22.8 };
 
@@ -227,8 +231,7 @@ export class Game {
     this.hud = new Hud(this.ui, store);
     this.hud.onPrompt = () => this.activate();
     this.hud.onCancel = () => this.cancelJob();
-    this.hud.phoneBtn.onclick = () => this.togglePhone();
-    this.hud.talkBtn.onclick = () => this.talkToNearest();
+    this.hud.onWallet = () => this.togglePhone();
     this.panel = new DialoguePanel(this.ui, {
       send: (t) => void this.send(t, false),
       close: () => this.endTalk(),
@@ -271,9 +274,11 @@ export class Game {
       },
       !!this.touch,
     );
-    if (this.touch) this.touch.addTop(this.guide.micBtn, this.guide.kbBtn);
+    if (this.touch) this.touch.addTop(this.guide.micBtn);
     else this.guide.dock(this.hud.prompt);
     this.input.onTap = (x, y) => this.handleTap(x, y);
+    // From outside, the camera treats the whole house as solid (it would slip in through the doorway).
+    this.rig.blockers = [{ minX: HOUSE.x0 - 0.2, maxX: HOUSE.x1 + 0.2, minY: 0, maxY: 8.4, minZ: HOUSE.z0 + 0.1, maxZ: HOUSE.z1 + 0.2 }];
     this.hud.onMapPick = (x, z) => this.mapPick(x, z);
 
     store.on('money', (e) => {
@@ -299,7 +304,7 @@ export class Game {
     this.bindKeys();
     this.hud.refreshClock();
     if (!store.npc('mum').met) {
-      this.markPlace('home', 'كلّم أمك بالحوش');
+      this.markPlace('home', 'ادخل البيت وكلّم أمك بالمطبخ');
       this.beacons.move('dest', HOME.mum.x, HOME.mum.z);
     }
     this.running = true;
@@ -308,7 +313,10 @@ export class Game {
     this.renderer.domElement.focus({ preventScroll: true });
     this.hud.refreshGoal();
     if (!s.flags.onboarded) setTimeout(() => this.showHowTo(true), 500);
-    else this.guide.say(this.fill('هلا {name}! قول لي شو تبي{|ن}، وأنا أوديك. اضغط 🎤 أو اكتب.'), GUIDE_SUGGESTIONS, false);
+    else {
+      this.showWalkHint();
+      this.guide.say(this.fill('هلا {name}! اضغط 🎤 وقول لي شو تبي{|ن}، وأنا أوديك.'), GUIDE_SUGGESTIONS, false);
+    }
   }
 
   // ------------------------------------------------------------------ setup
@@ -428,6 +436,13 @@ export class Game {
     const speedMul = this.store.has('sneakers') ? 1.15 : 1;
     let move = frozen ? { x: 0, y: 0 } : this.input.axis();
     let run = this.input.running;
+    // Press and hold on the street: walk toward the finger.
+    const steer = !frozen && Math.hypot(move.x, move.y) < 0.2 ? this.steerMove() : null;
+    if (steer) {
+      if (this.autoWalk) this.stopWalk('manual');
+      move = steer.move;
+      run = steer.run;
+    }
     if (this.autoWalk && !frozen) {
       // Any key or stick input means the player wants to walk themselves.
       if (Math.hypot(move.x, move.y) > 0.2) this.stopWalk('manual');
@@ -443,6 +458,19 @@ export class Game {
         this.stepTimer = 1.4;
         this.sfx.step(this.player.pos.y < 0.1);
       }
+    }
+
+    // Inside the house the roof comes off and the camera looks down into the rooms.
+    const inside = insideHouse(this.player.pos.x, this.player.pos.z);
+    if (inside !== this.inside) {
+      this.inside = inside;
+      this.world.house.upper.visible = !inside;
+      this.rig.indoor = inside;
+      this.lampTimer = 0;
+    }
+    if (!this.walkedHint && this.hintEl) {
+      this.walkedDist += this.player.speed * dt;
+      if (this.walkedDist > 14) this.dropWalkHint();
     }
 
     // World.
@@ -530,7 +558,7 @@ export class Game {
   }
 
   private availableJobsCount(): number {
-    return ['plants', 'trash', 'tutor', 'hamadcar'].filter((j) => this.store.jobBlock(j as JobId) === null).length;
+    return JOBS.filter((j) => j.daily && this.store.jobBlock(j.id) === null).length;
   }
 
   // ------------------------------------------------------------------ interactions
@@ -546,7 +574,8 @@ export class Game {
     list.push({ key: 'shelves', label: 'تسوّق من رفوف البقالة', x: -84, z: -9.6, r: 1.8, run: () => this.openOverlay((root, env) => new GroceryShop(root, env)) });
     list.push({ key: 'phones', label: 'شوف بضاعة عالم الجوال', x: 16, z: -9.6, r: 1.8, run: () => this.openOverlay((root, env) => new UpgradeShop(root, env)) });
     const h24 = this.store.hour;
-    if (h24 >= 19 || h24 < 5) list.push({ key: 'sleep', label: 'نام لين الصبح', x: HOME.door.x, z: HOME.door.z, r: 1.8, run: () => this.sleep() });
+    if (h24 >= 19 || h24 < 5) list.push({ key: 'sleep', label: 'نام لين الصبح', x: HOUSE.bed.x, z: HOUSE.bed.z, r: 2.6, run: () => this.sleep() });
+    list.push({ key: 'jobboard', label: 'شوف لوحة الوظائف', x: COMPANY.board.x, z: COMPANY.board.z, r: 2.2, run: () => this.openBoard() });
     const cans = this.store.count('cans');
     list.push({ key: 'recycle', label: cans ? `حط ${cans} علب بآلة التدوير` : 'آلة التدوير (اجمع علب من الشارع)', x: 33, z: -9.0, r: 2, run: () => this.recycle() });
     if (this.store.has('stall')) list.push({ key: 'stall', label: 'افتح البسطة وبيع', x: STALL_SPOT.x, z: STALL_SPOT.z + 1.2, r: 2.2, run: () => this.openStall() });
@@ -786,7 +815,12 @@ export class Game {
           }
           break;
         case 'openShop':
-          setTimeout(() => this.openOverlay((root, env) => (a.shop === 'grocery' ? new GroceryShop(root, env) : new UpgradeShop(root, env))), 1400);
+          setTimeout(() => {
+            if (this.talk === t) this.endTalk();
+            if (a.shop === 'deals') this.openDeals();
+            else if (a.shop === 'jobboard') this.openBoard();
+            else this.openOverlay((root, env) => (a.shop === 'grocery' ? new GroceryShop(root, env) : new UpgradeShop(root, env)));
+          }, 1400);
           break;
         case 'mark':
           this.markPlace(a.place);
@@ -933,10 +967,49 @@ export class Game {
           this.scene.add(m);
           return m;
         });
-        this.job = { kind: 'sweep', piles };
+        this.job = { kind: 'sweep', job: 'barber', piles };
         this.hud.toast('كنّس الشعر من الرصيف قدام الصالون: قرّب من كل كومة واضغط E.');
         break;
       }
+      case 'sweep': {
+        const piles = HOUSE.dust.map((d) => {
+          const m = new Mesh(new SphereGeometry(0.34, 8, 4), solid('#a8957a', 1));
+          m.scale.set(1, 0.16, 1);
+          m.position.set(d.x, 0.08, d.z);
+          this.scene.add(m);
+          return m;
+        });
+        this.job = { kind: 'sweep', job: 'sweep', piles };
+        this.hud.toast('كنّس الغبار بالصالة والمطبخ وغرفتك: قرّب من كل كومة واضغط E.');
+        break;
+      }
+      case 'tidy': {
+        const colors = ['#d8352b', '#2f7fb8', '#3f9150', '#e0a526', '#7a5aa6'];
+        const items = HOUSE.mess.map((p, i) => {
+          const m = new Mesh(i % 2 ? new BoxGeometry(0.4, 0.12, 0.3) : new SphereGeometry(0.16, 10, 8), solid(colors[i], 0.7));
+          m.position.set(p.x, i % 2 ? 0.1 : 0.17, p.z);
+          m.rotation.y = this.rng.range(0, Math.PI);
+          m.castShadow = true;
+          this.scene.add(m);
+          return m;
+        });
+        this.job = { kind: 'tidy', items, held: 0 };
+        this.hud.toast('شيل الأغراض المرمية بغرفتك (E) وحطها بالكبت.');
+        break;
+      }
+      case 'dishes':
+        return this.openOverlay((root, env) => new DishesGame(root, env, () => this.afterWork()));
+      case 'laundry':
+        return this.openOverlay((root, env) => new LaundryGame(root, env, () => this.afterWork()));
+      case 'coffee':
+        return this.openOverlay((root, env) => new CoffeeGame(root, env, () => this.afterWork()));
+      case 'trade':
+        return this.openOverlay((root, env) => new TradeGame(root, env, () => this.afterWork()));
+      case 'reception':
+      case 'sales':
+      case 'accounting':
+        if (!this.store.s.flags.companyHired) return this.openOverlay((root, env) => new InterviewGame(root, env, () => setTimeout(() => this.startJob('reception'), 50)));
+        return this.openOverlay((root, env) => (id === 'reception' ? new ReceptionGame(root, env, () => this.afterWork()) : id === 'sales' ? new SalesGame(root, env, () => this.afterWork()) : new AccountingGame(root, env, () => this.afterWork())));
       case 'recycle':
         this.hud.toast('اجمع العلب الفاضية من الشارع (امشِ فوقها) وحطها بالآلة جنب موقف الباص.');
         this.markPlace('recycle');
@@ -957,6 +1030,10 @@ export class Game {
     }
     if (j.kind === 'wash') this.finishWash(false, true);
     if (j.kind === 'sweep') for (const p of j.piles) p.removeFromParent();
+    if (j.kind === 'tidy') {
+      for (const m of j.items) m.removeFromParent();
+      this.player.carry(null);
+    }
     if (j.kind === 'errand') {
       this.store.s.errand = null;
     }
@@ -1049,11 +1126,53 @@ export class Game {
         });
     } else if (j.kind === 'delivery' && j.customer) {
       out.push({ key: 'deliver', label: 'سلّم الطلب للزبون', x: j.customer.root.position.x, z: j.customer.root.position.z, r: 3.4, run: () => this.completeDelivery() });
+    } else if (j.kind === 'tidy') {
+      for (const m of j.items)
+        out.push({
+          key: 'mess',
+          label: 'شيل الغرض',
+          x: m.position.x,
+          z: m.position.z,
+          r: 1.5,
+          run: () => {
+            j.items.splice(j.items.indexOf(m), 1);
+            m.removeFromParent();
+            j.held++;
+            this.sfx.pop();
+            if (j.held === 1) {
+              const box = new Mesh(new BoxGeometry(0.4, 0.3, 0.3), solid('#c9a46a', 0.9));
+              this.player.carry(box);
+            }
+          },
+        });
+      if (j.held > 0)
+        out.push({
+          key: 'wardrobe',
+          label: j.items.length ? `حط ${j.held} بالكبت` : 'حط كل الأغراض بالكبت',
+          x: HOUSE.wardrobe.x,
+          z: HOUSE.wardrobe.z - 0.6,
+          r: 1.9,
+          run: () => {
+            this.player.carry(null);
+            this.sfx.pop();
+            j.held = 0;
+            if (!j.items.length) {
+              this.store.finishJob('tidy');
+              this.store.gainXp('tidy', 8);
+              this.pay(this.store.payFor('tidy', job('tidy').pay) * (this.store.has('gift') ? 2 : 1), 'ترتيب غرفتي', this.player.pos);
+              void this.speakLine(this.fill('ما شاء الله، غرفتك صارت مرتبة! تسلم{|ين}.'), { gender: 'f', key: 'mum', pitch: 1.12, rate: 1 });
+              this.hud.toast(`ماما من المطبخ: «الله يرضى عليك!»`, 'good');
+              this.job = null;
+              this.beacons.clear('job');
+            }
+          },
+        });
     } else if (j.kind === 'sweep') {
+      const home = j.job === 'sweep';
       for (const p of j.piles)
         out.push({
           key: 'pile',
-          label: 'كنّس الشعر',
+          label: home ? 'كنّس الغبار' : 'كنّس الشعر',
           x: p.position.x,
           z: p.position.z,
           r: 1.4,
@@ -1064,11 +1183,18 @@ export class Game {
             p.removeFromParent();
             this.sfx.scrub();
             if (!j.piles.length) {
-              const barber = this.npcs.find((n) => n.def.id === 'barber')!;
-              this.store.finishJob('barber');
-              this.store.gainXp('barber', 8);
-              this.pay(this.store.payFor('barber', job('barber').pay), 'ترتيب الصالون', barber.pos);
-              void this.speakLine('تسلم إيدك! الصالون بقى بيلمع.', { gender: 'm', key: 'barber', pitch: 0.94, rate: 1.05 });
+              if (home) {
+                this.store.finishJob('sweep');
+                this.store.gainXp('sweep', 8);
+                this.pay(this.store.payFor('sweep', job('sweep').pay) * (this.store.has('gift') ? 2 : 1), 'كنس البيت', this.player.pos);
+                void this.speakLine(this.fill('الله يعطيك العافية، البيت يلمع!'), { gender: 'f', key: 'mum', pitch: 1.12, rate: 1 });
+              } else {
+                const barber = this.npcs.find((n) => n.def.id === 'barber')!;
+                this.store.finishJob('barber');
+                this.store.gainXp('barber', 8);
+                this.pay(this.store.payFor('barber', job('barber').pay), 'ترتيب الصالون', barber.pos);
+                void this.speakLine('تسلم إيدك! الصالون بقى بيلمع.', { gender: 'm', key: 'barber', pitch: 0.94, rate: 1.05 });
+              }
               this.job = null;
               this.beacons.clear('job');
             }
@@ -1121,6 +1247,10 @@ export class Game {
       if (j.left <= 0) this.finishWash(true);
     } else if (j.kind === 'sweep') {
       this.syncJobBeacons(j.piles.map((p, i) => ({ id: `job-pile${i}`, x: p.position.x, z: p.position.z, icon: '🧹' })));
+    } else if (j.kind === 'tidy') {
+      const list = j.items.map((m, i) => ({ id: `job-mess${i}`, x: m.position.x, z: m.position.z, icon: '🧸' }));
+      if (j.held && !j.items.length) list.push({ id: 'job-wardrobe', x: HOUSE.wardrobe.x, z: HOUSE.wardrobe.z - 0.6, icon: '🚪' });
+      this.syncJobBeacons(list);
     }
   }
 
@@ -1154,7 +1284,9 @@ export class Game {
       case 'wash':
         return this.hud.setObjective(`🧽 نظّف البقع: ${j.total - j.spots.length}/${j.total} — امسحها بالسحب`, j.left, true);
       case 'sweep':
-        return this.hud.setObjective(`🧹 كنّس الشعر: ${6 - j.piles.length}/6`, null, true);
+        return this.hud.setObjective(`🧹 ${j.job === 'sweep' ? 'كنّس الغبار بالبيت' : 'كنّس الشعر'}: ${6 - j.piles.length}/6`, null, true);
+      case 'tidy':
+        return this.hud.setObjective(j.items.length ? `🧸 رتّب غرفتك: شلت ${5 - j.items.length}/5` : '🚪 حط الأغراض بالكبت', null, true);
     }
   }
 
@@ -1491,9 +1623,20 @@ export class Game {
   }
 
   private lampTimer = 0;
+  private inside = false;
 
   private updateLampLights(): void {
     const night = this.sky.night;
+    if (this.inside) {
+      // Ceiling lights in the hall, the kitchen and my room.
+      if (--this.lampTimer <= 0) {
+        this.lampTimer = 30;
+        const rooms = [HOUSE.hall, { x: -62.6, z: 35 }, { x: -77.5, z: 35 }, { x: -70, z: 38 }];
+        this.lampLights.forEach((l, i) => rooms[i] && l.position.set(rooms[i].x, 3.2, rooms[i].z));
+      }
+      for (const [i, l] of this.lampLights.entries()) l.intensity = i < 4 ? 6 + night * 22 : 0;
+      return;
+    }
     if (--this.lampTimer <= 0) {
       this.lampTimer = 20;
       const p = this.player.pos;
@@ -1589,12 +1732,21 @@ export class Game {
         case 'buy':
           this.goBuy(a.upgrade);
           break;
+        case 'move':
+          this.moveDir(a.dir);
+          break;
+        case 'openBoard':
+          this.goToPlace('jobboard');
+          break;
+        case 'invest':
+          this.goToNpc('partner', null, () => this.openDeals());
+          break;
         case 'openPhone':
           this.stopWalk();
           setTimeout(() => !this.overlay && !this.talk && this.phone.open(a.tab), 900);
           break;
         case 'sleep':
-          this.walkTo({ x: HOME.door.x, z: HOME.door.z - 1.4 }, 'البيت', () => this.sleep(), HOME.door);
+          this.walkTo({ x: -77.6, z: 38.4 }, 'سريرك', () => this.sleep(), HOUSE.bed);
           break;
         case 'stop':
           this.stopWalk('button');
@@ -1656,7 +1808,9 @@ export class Game {
 
   private goToPlace(id: PlaceId): void {
     const p = PLACE_BY_ID.get(id)!;
-    if (id === 'home') return this.walkTo({ x: -70, z: 19.5 }, p.name, () => {}, null);
+    if (id === 'home') return this.walkTo(HOUSE.hall, 'داخل البيت', () => {}, null);
+    if (id === 'company') return this.goToNpc('hr', null);
+    if (id === 'jobboard') return this.walkTo({ x: COMPANY.board.x, z: COMPANY.board.z + 1.4 }, p.name, () => this.openBoard(), COMPANY.board);
     if (id === 'atm') return this.walkTo({ x: -69.25, z: -8.6 }, p.name, () => this.openOverlay((root, env) => new Atm(root, env)), { x: -69.25, z: -10.2 });
     if (id === 'grandpa') return this.goToNpc('grandpa', null);
     this.walkTo(this.stand(p.x, p.z), p.name, () => {}, p);
@@ -1673,7 +1827,7 @@ export class Game {
 
   /** A spot in front of a character, on their side of the counter. */
   private approach(ent: NpcEntity): Pt {
-    const f = ent.def.facing;
+    const f = ent.spot.facing;
     for (const r of [1.6, 1.2, 2.2]) {
       const p = { x: ent.pos.x + Math.sin(f) * r, z: ent.pos.z + Math.cos(f) * r };
       if (!this.world.colliders.blocked(p.x, p.z, 0.36)) return p;
@@ -1802,6 +1956,72 @@ export class Game {
     if (why === 'button') this.hud.toast('وقفنا. امشِ بنفسك أو قول لسند وين تبي تروح.');
   }
 
+  /** Spoken movement: walk a stretch forward, back, to a side, out to the street or into the house. */
+  private moveDir(dir: MoveDir): void {
+    const p = this.player.pos;
+    if (dir === 'in') return this.goToPlace('home');
+    if (dir === 'out') {
+      // Out of the house and the courtyard, onto the sidewalk in front of the gate.
+      return this.walkTo({ x: -70, z: 8.2 }, 'الشارع', () => {}, null);
+    }
+    const turn = { forward: 0, back: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 }[dir];
+    const h = this.player.heading + turn;
+    for (const d of [16, 11, 7, 4]) {
+      const t = { x: p.x + Math.sin(h) * d, z: p.z + Math.cos(h) * d };
+      const stand = this.stand(t.x, t.z);
+      if (this.nav.route({ x: p.x, z: p.z }, stand)) return this.walkTo(stand, '', () => {});
+    }
+    this.hud.toast('ما في طريق من هالجهة. جرّب جهة ثانية.');
+  }
+
+  /** Where the held finger points on the ground, as stick input; null when not steering. */
+  private steerMove(): { move: { x: number; y: number }; run: boolean } | null {
+    const s = this.input.steer;
+    if (!s) return null;
+    const ndc = new Vector2((s.x / innerWidth) * 2 - 1, -(s.y / innerHeight) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(new Plane(new Vector3(0, 1, 0), -0.1), this.tmp);
+    if (!hit) return null;
+    const dx = hit.x - this.player.pos.x;
+    const dz = hit.z - this.player.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.7) return { move: { x: 0, y: 0 }, run: false };
+    const fx = -Math.sin(this.rig.yaw);
+    const fz = -Math.cos(this.rig.yaw);
+    const ux = dx / d;
+    const uz = dz / d;
+    this.dropWalkHint();
+    return { move: { x: ux * -fz + uz * fx, y: ux * fx + uz * fz }, run: d > 7 };
+  }
+
+  private openBoard(): void {
+    this.openOverlay((root, env) => new JobBoard(root, env, (id) => setTimeout(() => this.goToJob(id), 50), () => setTimeout(() => this.goToNpc('partner', null, () => this.openDeals()), 50)));
+  }
+
+  private openDeals(): void {
+    this.openOverlay((root, env) => new DealsBoard(root, env));
+  }
+
+  /** "Walk forward" hint for new players, until they have walked a few metres. */
+  private hintEl: HTMLElement | null = null;
+  private walkedHint = false;
+  private walkedDist = 0;
+
+  private showWalkHint(): void {
+    if (this.store.s.flags.walked || this.hintEl) return;
+    const text = this.touch ? '👈 امشِ بالعصا تحت يسار، أو اضغط مطولاً على الشارع' : '⬆️ امشِ لقدام: اضغط ↑ أو W — أو اضغط مطولاً بالماوس على الشارع';
+    this.hintEl = h('div.walk-hint', text);
+    this.ui.append(this.hintEl);
+  }
+
+  private dropWalkHint(): void {
+    if (!this.hintEl) return;
+    this.hintEl.remove();
+    this.hintEl = null;
+    this.walkedHint = true;
+    this.store.s.flags.walked = true;
+  }
+
   /** Tap or click on the street: walk there; on a person, walk up and talk. */
   private handleTap(x: number, y: number): void {
     if (!this.running || this.talk || this.overlay || this.phone.isOpen || this.job?.kind === 'wash' || this.hud.mapOpen) return;
@@ -1844,6 +2064,7 @@ export class Game {
       { key: 'shelves', x: -84, z: -9.6, stand: { x: -84, z: -8.2 }, label: 'رفوف البقالة' },
       { key: 'phones', x: 16, z: -9.6, stand: { x: 16, z: -8.2 }, label: 'عالم الجوال' },
       { key: 'recycle', x: 33, z: -9, stand: { x: 33, z: -7.8 }, label: 'آلة التدوير' },
+      { key: 'jobboard', x: COMPANY.board.x, z: COMPANY.board.z, stand: { x: COMPANY.board.x, z: COMPANY.board.z + 1.4 }, label: 'لوحة الوظائف' },
     ];
     if (this.store.has('stall')) things.push({ key: 'stall', x: STALL_SPOT.x, z: STALL_SPOT.z, stand: { x: STALL_SPOT.x, z: STALL_SPOT.z + 1.4 }, label: 'البسطة' });
     for (const t of things) {
@@ -1901,11 +2122,11 @@ export class Game {
       ov.body.append(
         h(
           'div.howto',
-          h('div.step', h('span', '🎤'), h('div', h('b', 'اطلب من سند: '), this.touch ? 'اضغط زر المايك البرتقالي (يمين تحت)' : ['اضغط زر ', h('b', '🎤 تكلم'), ' تحت (أو ', k('V'), ')'], ' وقول شو تبي، مثلاً: «أبي شغل أونلاين يجيب 1000 درهم بالشهر». سند يحسب لك الخطة، يحط لك هدف، يوديك للمكان، ويبدأ لك الشغل.')),
-          h('div.step', h('span', '⌨️'), h('div', h('b', 'أو اكتب: '), this.touch ? 'اضغط ⌨️ واكتب طلبك.' : ['اكتب طلبك بالمربع اللي تحت واضغط ', k('Enter'), '.'], inClaude ? ' داخل claude.ai المتصفح يمنع المايك، فتكلم بمايك الكيبورد: بالجوال 🎤 اللي بالكيبورد، بويندوز Win+H، بالماك Fn مرتين.' : '')),
-          h('div.step', h('span', '👆'), h('div', h('b', 'امشِ بضغطة: '), 'اضغط على أي مكان أو أي شخص بالشاشة وتمشي له لحالك.', this.touch ? ' أو حرّك عصا التحكم (يسار تحت).' : [' أو امشِ بالأسهم ', k('↑'), k('↓'), k('←'), k('→'), ' أو ', k('W'), k('A'), k('S'), k('D'), '، و', k('Shift'), ' للركض.'])),
-          h('div.step', h('span', '💬'), h('div', h('b', 'كلّم الناس: '), this.touch ? 'قرّب من أي شخص واضغط زر التفاعل.' : ['قرّب من أي شخص واضغط ', k('E'), ' أو ', k('T'), '.'], ' تقدر تطلب منهم شغل، تشتري، تسأل عن الطريق.')),
-          h('div.step', h('span', '🗺️'), h('div', h('b', 'الخريطة: '), this.touch ? 'اضغط 🗺️' : ['اضغط ', k('M')], ' وبعدين اضغط على أي مكان فيها وتروح له.')),
+          h('div.step', h('span', '🎤'), h('div', h('b', 'زر واحد بس: المايك. '), this.touch ? 'اضغط الزر البرتقالي الكبير (يمين تحت)' : ['اضغط الزر البرتقالي ', h('b', '🎤 تكلم'), ' تحت (أو ', k('V'), ')'], ' وقول شو تبي بوضوح: «أبي شغل أونلاين يجيب 1000 درهم بالشهر»، «ادخل البيت»، «امشي لقدام»، «شو في شغل على قدي؟». سند يرد عليك ويوديك ويبدأ لك.', inClaude ? ' (داخل claude.ai المتصفح يمنع المايك: لما تضغطه يطلع لك مربع، تكلم فيه بمايك الكيبورد: بالجوال 🎤 اللي بالكيبورد، بويندوز Win+H، بالماك Fn مرتين.)' : '')),
+          h('div.step', h('span', '🚶'), h('div', h('b', 'المشي لقدام: '), this.touch ? 'حرّك العصا اللي تحت يسار لفوق، أو اضغط مطولاً على الشارع وتمشي باتجاه إصبعك.' : ['اضغط ', k('↑'), ' أو ', k('W'), ' (و', k('Shift'), ' للركض)، أو اضغط مطولاً بالماوس على الشارع وتمشي باتجاهه.'], ' وضغطة وحدة على أي مكان أو شخص توديك له.')),
+          h('div.step', h('span', '🏠'), h('div', h('b', 'البيت: '), 'ادخل من الباب: أمك بالمطبخ، وأبوك بالمجلس الصبح. عندهم طلبات بفلوس: كنس البيت، المواعين، ترتيب غرفتك، الغسيل، ضيافة القهوة.')),
+          h('div.step', h('span', '🏢'), h('div', h('b', 'برا: '), 'لوحة الوظائف قدام برج الشركة فيها كل الشغل اللي على قدك. الشركة فيها مقابلة وترقيات (متدرب، موظف، مشرف، مدير)، وأبو راشد التاجر عند الكرك عنده صفقات وشراكات تجيب دخل كل يوم.')),
+          h('div.step', h('span', '📱'), h('div', 'الجوال: اضغط على المحفظة فوق. والخريطة: اضغط على الخريطة الصغيرة، وبعدين على أي مكان تبي تروح له.')),
           h('div.row', h('button.btn', { type: 'button', id: 'howto-ok', onclick: () => ov.close() }, 'يلا نبدأ!')),
         ),
       );
@@ -1913,6 +2134,7 @@ export class Game {
         if (!first) return;
         this.store.s.flags.onboarded = true;
         this.renderer.domElement.focus({ preventScroll: true });
+        this.showWalkHint();
         setTimeout(() => this.guideSay(this.fill('هلا {name}! أنا سند. قول لي شو تبي{|ن}، مثلاً «أبي شغل أونلاين يجيب 1000 درهم بالشهر»، وأنا أوديك وأبدأ لك.'), GUIDE_SUGGESTIONS), 300);
       };
       return { ov };

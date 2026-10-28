@@ -40,9 +40,9 @@ describe('guide', () => {
     expect(go && go.type === 'goJob' && go.job).not.toBe('delivery');
   });
 
-  it('helps the family first when asked', () => {
+  it('helps the family first when asked, starting with chores inside the house', () => {
     const r = guideRespond('ابي اساعد اهلي', store(9), new Rng(4));
-    expect(r.actions).toContainEqual({ type: 'goJob', job: 'plants' });
+    expect(r.actions).toContainEqual({ type: 'goJob', job: 'sweep' });
   });
 
   it('takes the player to people and places', () => {
@@ -121,6 +121,57 @@ describe('guide extras', () => {
     const c2 = newConversation({ kind: 'npc', def: npc('grocer') }, closed);
     const r2 = autoOffer(c2, { store: closed, rng: new Rng(5) }, 'cashier');
     expect(r2.actions.some((a) => a.type === 'startJob')).toBe(false);
+  });
+});
+
+describe('guide: house, company, partner, moving', () => {
+  it('understands spoken movement', () => {
+    const st = store();
+    for (const [t, dir] of [
+      ['امشي لقدام', 'forward'],
+      ['ارجع لورا', 'back'],
+      ['لف يمين', 'right'],
+      ['يسار', 'left'],
+      ['اطلع برا', 'out'],
+      ['ادخل البيت', 'in'],
+    ] as const)
+      expect(guideRespond(t, st, new Rng(1)).actions, t).toContainEqual({ type: 'move', dir });
+  });
+
+  it('sends house chores, company work and the partner to the right people', () => {
+    const st = store(10);
+    expect(guideRespond('أبي أساعد أهلي بالبيت', st, new Rng(1)).actions).toContainEqual({ type: 'goJob', job: 'sweep' });
+    expect(guideRespond('أبي أغسل الصحون', st, new Rng(1)).actions).toContainEqual({ type: 'goJob', job: 'dishes' });
+    const company = guideRespond('أبي شغل بشركة', st, new Rng(1));
+    expect(company.actions).toContainEqual({ type: 'goJob', job: 'reception' });
+    expect(company.text).toContain('مقابلة');
+    expect(guideRespond('أبي أشتغل مع تاجر', st, new Rng(1)).actions).toContainEqual({ type: 'goJob', job: 'trade' });
+    st.earn(500, 'test');
+    expect(guideRespond('أبي أستثمر فلوسي', st, new Rng(1)).actions).toContainEqual({ type: 'invest' });
+    expect(guideRespond('شو في شغل على قدي؟', st, new Rng(1)).actions).toContainEqual({ type: 'openBoard' });
+    expect(guideRespond('أبي أصير غني', st, new Rng(1)).text).toContain('أبو راشد');
+  });
+
+  it('locks sales until promotion and promotes with shifts', () => {
+    const st = store(10);
+    expect(st.jobBlock('sales')).toBe('locked');
+    expect(st.lockText('sales')).toContain('موظف');
+    st.bump('companyShifts', 4);
+    expect(st.companyRank).toBe(1);
+    expect(st.jobBlock('sales')).toBeNull();
+    expect(st.payFor('reception', 45)).toBeGreaterThan(45);
+  });
+
+  it('pays partnerships into the bank every morning until they end', () => {
+    const st = store(10);
+    st.earn(300, 'test');
+    expect(st.invest('karakcart')).toBe('ok');
+    expect(st.s.wallet).toBe(0);
+    st.sleep();
+    expect(st.s.bank).toBeGreaterThanOrEqual(30);
+    expect(st.s.investments[0].daysLeft).toBe(14);
+    for (let d = 0; d < 14; d++) st.sleep();
+    expect(st.s.investments.length).toBe(0);
   });
 });
 
