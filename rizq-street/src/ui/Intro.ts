@@ -34,8 +34,8 @@ export function showIntro(parent: HTMLElement, saved: { name: string; gender: Ge
     boy.onclick = () => pick('m');
     girl.onclick = () => pick('f');
     const status = h('div.mic-status');
-    const start = h('button.btn.start', { type: 'submit' }, h('span', '🎤'), 'ابدأ اللعب') as HTMLButtonElement;
-    const note = h('div.muted', inClaudeViewer ? `ملاحظة: صفحة claude.ai تمنع المايك. عشان تتكلم بصوتك افتح اللعبة من الرابط: ${GAME_URL}` : 'لما تضغط «ابدأ» المتصفح بيطلب منك إذن المايك. اسمح له عشان أهل الفريج يسمعونك.');
+    const start = h('button.btn.start', { type: 'submit' }, h('span', inClaudeViewer ? '▶' : '🎤'), 'ابدأ اللعب') as HTMLButtonElement;
+    const note = h('div.muted', inClaudeViewer ? 'تكتب طلباتك وكلامك بالمربع، أو تضغط مايك الكيبورد 🎤 بجوالك. وأهل الفريج يردون عليك بصوت.' : 'لما تضغط «ابدأ» المتصفح بيطلب منك إذن المايك. اسمح له عشان أهل الفريج يسمعونك.');
     let busy = false;
 
     const go = async (cont: boolean) => {
@@ -51,6 +51,12 @@ export function showIntro(parent: HTMLElement, saved: { name: string; gender: Ge
       busy = true;
       // Inside the tap: sound and speech may play from now on.
       unlock();
+      if (inClaudeViewer) {
+        // claude.ai never grants the microphone: start right away and type instead.
+        wrap.remove();
+        resolve({ name: cont && saved ? saved.name : typed, gender: cont && saved ? saved.gender : gender, continueSave: cont, mic: 'denied' });
+        return;
+      }
       start.disabled = true;
       status.className = 'mic-status wait';
       status.textContent = 'اسمح للمايك من نافذة المتصفح اللي طلعت 👆';

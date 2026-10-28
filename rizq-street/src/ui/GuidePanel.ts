@@ -26,6 +26,8 @@ export class GuidePanel {
   private readonly walkText = h('span.grow');
   private hideTimer = 0;
   private hovering = false;
+  /** No microphone here: the one button opens the text box, and the box stays on screen. */
+  private typingFirst = false;
 
   constructor(
     parent: HTMLElement,
@@ -43,17 +45,18 @@ export class GuidePanel {
     this.walk.append(h('span', '🚶'), this.walkText, h('button.btn.warm', { type: 'button', id: 'guide-warp', onclick: () => hooks.warp() }, '⏩ وصّلني الحين'), h('button.btn.secondary', { type: 'button', title: 'وقف المشي', onclick: () => hooks.stopWalk() }, '✕'));
     this.walk.hidden = true;
     const send = h('button.guide-send', { type: 'submit', title: 'أرسل' }, '➤');
-    this.bar.append(this.input, send, h('button.x', { type: 'button', title: 'إغلاق', onclick: () => this.blurInput() }, '✕'));
+    this.bar.append(this.input, send, h('button.x', { type: 'button', title: 'إغلاق', onclick: () => this.blurInput(true) }, '✕'));
     this.bar.addEventListener('submit', (e) => {
       e.preventDefault();
       const t = this.input.value.trim();
       if (!t) return;
       this.input.value = '';
+      // Leave the box (so the arrow keys walk again); in typing-first mode it stays visible.
       this.blurInput();
       hooks.submit(t);
     });
     this.input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.blurInput();
+      if (e.key === 'Escape') this.blurInput(true);
     });
     this.micBtn.addEventListener('click', () => hooks.mic());
     this.el.append(this.bubble, this.walk, this.bar);
@@ -119,9 +122,19 @@ export class GuidePanel {
     this.input.focus();
   }
 
-  blurInput(): void {
+  blurInput(close = false): void {
     this.input.blur();
-    this.closeTyping();
+    if (close || !this.typingFirst || this.el.classList.contains('touch')) this.closeTyping();
+  }
+
+  /** Typing instead of the mic (claude.ai blocks it): the button reads «اكتب». */
+  setTypingFirst(on: boolean): void {
+    this.typingFirst = on;
+    this.micBtn.querySelector('.ico')!.textContent = on ? '⌨️' : '🎤';
+    this.micBtn.querySelector('.lbl')!.textContent = on ? 'اكتب' : 'تكلم';
+    this.micBtn.title = on ? 'اكتب لسند (Enter)، أو استخدم مايك الكيبورد' : 'اضغط وتكلم مع سند (V)';
+    this.input.placeholder = on ? 'اكتب هنا وش تبي… أو اضغط مايك الكيبورد 🎤' : 'قول أو اكتب شو تبي… مثلاً: أبي شغل أونلاين يجيب 1000 درهم بالشهر';
+    if (on && !this.el.classList.contains('touch')) this.el.classList.add('typing');
   }
 
   get inputFocused(): boolean {

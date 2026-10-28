@@ -206,6 +206,8 @@ export class Game {
   start(store: Store, mic: MicPermission = 'prompt'): void {
     this.store = store;
     this.speechIn.permission = mic;
+    // claude.ai never lets a page use the microphone: typing (or the keyboard's own mic) is the way in.
+    this.micBlocked = 'claude' in window;
     const s = store.s;
     setArabicDigits(this.settings.arabicDigits);
     const g = s.player.gender;
@@ -318,6 +320,7 @@ export class Game {
     this.hud.refreshGoal();
     const first = !s.flags.onboarded;
     s.flags.onboarded = true;
+    if (this.typingFirst) this.guide.setTypingFirst(true);
     setTimeout(() => void this.welcome(first, mic), 700);
   }
 
@@ -327,10 +330,17 @@ export class Game {
     await new Promise((r) => setTimeout(r, 300));
     if (this.talk || this.overlay) return;
     const ask = this.fill('وش حاب{|ة} تشتغل{|ين}؟');
-    const canTalk = mic === 'granted' || (mic === 'prompt' && Mic.supported());
-    this.guide.invite(canTalk);
-    await this.guideSay(ask, ['أبي شغل أونلاين', 'أبي أساعد أهلي بالبيت', 'أبي شغل بشركة', 'شو في شغل على قدي؟'], false, `${ask} ${this.touch ? 'اضغط الزر البرتقالي' : 'اضغط زر 🎤 تكلم'} وقول لي بصوتك.`);
-    if (!canTalk) this.guide.focusInput(this.micProblem(mic === 'nomic' ? 'nomic' : mic === 'unsupported' ? 'unsupported' : 'denied'));
+    const chips = ['أبي شغل أونلاين', 'أبي أساعد أهلي بالبيت', 'أبي شغل بشركة', 'شو في شغل على قدي؟'];
+    if (this.typingFirst) {
+      // Typing is the normal way in here: open the box, no warnings.
+      await this.guideSay(ask, chips, false, `${ask} اكتب لي بالمربع، أو اضغط مايك الكيبورد 🎤 بجوالك وتكلم.`);
+      this.guide.focusInput();
+    } else {
+      const canTalk = mic === 'granted' || (mic === 'prompt' && Mic.supported());
+      this.guide.invite(canTalk);
+      await this.guideSay(ask, chips, false, `${ask} ${this.touch ? 'اضغط الزر البرتقالي' : 'اضغط زر 🎤 تكلم'} وقول لي بصوتك.`);
+      if (!canTalk) this.guide.focusInput(this.micProblem(mic === 'nomic' ? 'nomic' : mic === 'unsupported' ? 'unsupported' : 'denied'));
+    }
     this.showWalkHint();
   }
 
@@ -755,7 +765,7 @@ export class Game {
     const name = sp.kind === 'npc' ? sp.def.name : sp.p.name;
     const title = sp.kind === 'npc' ? sp.def.title : sp.p.gender === 'f' ? 'جارة من الفريج' : 'جار من الفريج';
     this.panel.open(name, title, sp.kind === 'npc' ? NPC_COLORS[sp.def.id] ?? '#555' : '#6a5642');
-    this.panel.setMicAvailable(SpeechInput.supported(), SpeechInput.supported() ? '' : 'المايك غير مدعوم هنا، اكتب كلامك');
+    this.panel.setMicAvailable(!this.typingFirst, this.typingFirst ? 'اكتب كلامك، أو اضغط مايك الكيبورد 🎤 بجوالك.' : '');
     this.panel.setHandsFree(this.handsFree);
     this.panel.setSource(this.dm.backend ? 'Claude' : 'بدون إنترنت');
     const turn = offer && sp.kind === 'npc' ? this.dm.openWithOffer(sp, offer) : this.dm.open(sp);
@@ -871,6 +881,7 @@ export class Game {
 
   private async micTurn(): Promise<void> {
     if (!this.talk) return;
+    if (this.typingFirst) return this.panel.focusInput();
     if (this.speechIn.listening) {
       this.speechIn.stop();
       return;
@@ -1706,8 +1717,8 @@ export class Game {
       return;
     }
     this.guide.invite(false);
-    if (this.micBlocked) {
-      this.guide.focusInput(this.micProblem('denied'));
+    if (this.typingFirst) {
+      this.guide.focusInput();
       return;
     }
     this.speechOut.cancel();
@@ -1726,10 +1737,18 @@ export class Game {
       this.guide.setListening(false);
       const code = (typeof e === 'string' ? e : 'other') as MicError;
       // Inside claude.ai the page can never get the mic; elsewhere the player can still allow it.
-      if (code === 'denied' && 'claude' in window) this.micBlocked = true;
+      if (code === 'denied' && 'claude' in window) {
+        this.micBlocked = true;
+        this.guide.setTypingFirst(true);
+      }
       if (code === 'denied' || code === 'unsupported' || code === 'nomic') this.guide.focusInput(this.micProblem(code));
       else this.guide.say(MIC_ERROR_TEXT[code] ?? MIC_ERROR_TEXT.other, GUIDE_SUGGESTIONS, false);
     }
+  }
+
+  /** No microphone to use here (claude.ai, or nothing can turn speech into words): type instead. */
+  private get typingFirst(): boolean {
+    return this.micBlocked || this.speechIn.permission === 'unsupported' || this.speechIn.permission === 'nomic' || !this.speechIn.canRecognize();
   }
 
   /** Why the mic can't be used here, and what to do instead. */
