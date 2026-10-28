@@ -10,7 +10,8 @@
     "build:single": "tsc --noEmit && vite build --mode single && node tools/artifact.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:pages": "npm run build:single && node tools/pages.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",

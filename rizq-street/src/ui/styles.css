@@ -1647,6 +1647,55 @@ select.field {
   line-height: 22px;
 }
 
+.btn.start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 21px;
+  padding: 16px;
+  background: var(--karak);
+  box-shadow: 0 4px 0 #8f4312;
+}
+
+.btn.start span {
+  font-size: 26px;
+}
+
+.mic-status {
+  min-height: 1.4em;
+  font-size: 15px;
+  text-align: center;
+}
+
+.mic-status.wait {
+  color: var(--karak);
+  font-weight: 600;
+}
+
+.mic-status.ok {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.mic-status.bad {
+  color: var(--red);
+}
+
+.field.shake {
+  animation: shake 0.4s;
+  border-color: var(--red);
+}
+
+@keyframes shake {
+  25% {
+    translate: -6px 0;
+  }
+  75% {
+    translate: 6px 0;
+  }
+}
+
 .gender {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1860,6 +1909,30 @@ select.field {
   background: var(--red);
   box-shadow: 0 0 0 0 rgba(194, 59, 46, 0.6);
   animation: pulse 1.2s infinite;
+}
+
+.guide-mic.live.metered,
+.mic.live.metered,
+.touch-buttons button.guide-mic.live.metered {
+  animation: none;
+  box-shadow:
+    0 0 0 calc(3px + var(--lvl, 0) * 26px) rgba(194, 59, 46, 0.32),
+    0 0 0 calc(6px + var(--lvl, 0) * 40px) rgba(194, 59, 46, 0.14);
+  transition: box-shadow 0.06s linear;
+}
+
+.guide-mic.invite {
+  animation: invite 1.4s ease-in-out infinite;
+}
+
+@keyframes invite {
+  0%,
+  100% {
+    box-shadow: 0 5px 0 #8f4312, 0 0 0 0 rgba(255, 210, 120, 0.85);
+  }
+  60% {
+    box-shadow: 0 5px 0 #8f4312, 0 0 0 22px rgba(255, 210, 120, 0);
+  }
 }
 
 .guide-bubble {

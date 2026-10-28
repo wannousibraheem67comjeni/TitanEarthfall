@@ -34,6 +34,8 @@ export function actionKey(a: GuideAction): string {
       return `move:${a.dir}`;
     case 'openBoard':
       return 'open_board';
+    case 'help':
+      return 'help';
     default:
       return a.type;
   }
@@ -65,6 +67,8 @@ export function parseActionKey(key: string): GuideAction | null {
       return { type: 'openBoard' };
     case 'invest':
       return { type: 'invest' };
+    case 'help':
+      return { type: 'help' };
     case 'sleep':
       return { type: 'sleep' };
     case 'stop':

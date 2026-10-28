@@ -35,6 +35,7 @@ import { makePasserby } from '../dialogue/pedestrians';
 import type { Action, Speaker } from '../dialogue/brain';
 import { fillTemplate, formatMoney, normalizeArabic, setArabicDigits } from '../lang/arabic';
 import { analyze } from '../lang/intents';
+import { Mic, type MicPermission } from '../voice/mic';
 import { SpeechInput, SpeechOutput, MIC_ERROR_TEXT, type MicError, type VoiceProfile } from '../voice/speech';
 import { Character } from '../world/characters';
 import type { CircleCollider } from '../world/collision';
@@ -47,6 +48,7 @@ import { signTexture } from '../world/textures';
 import { Hud, type LabelInfo } from '../ui/Hud';
 import { DialoguePanel } from '../ui/DialoguePanel';
 import { GuidePanel } from '../ui/GuidePanel';
+import { GAME_URL } from '../ui/Intro';
 import { Phone } from '../ui/Phone';
 import { TouchControls } from '../ui/TouchControls';
 import { h } from '../ui/dom';
@@ -201,8 +203,9 @@ export class Game {
   }
 
   /** Called once the player picked a name (or continued a save). */
-  start(store: Store): void {
+  start(store: Store, mic: MicPermission = 'prompt'): void {
     this.store = store;
+    this.speechIn.permission = mic;
     const s = store.s;
     setArabicDigits(this.settings.arabicDigits);
     const g = s.player.gender;
@@ -259,6 +262,7 @@ export class Game {
       testVoice: () => this.speakLine('هلا والله! أنا رحيم من بقالة النور. صوتي واضح؟', { gender: 'm', key: 'grocer', pitch: 1, rate: 1 }),
       close: () => this.phone.close(),
       claudeStatus: () => this.claudeStatus(),
+      voiceInfo: () => ({ ...this.speechOut.describe(), lastError: this.speechOut.lastError }),
     });
     if (TouchControls.wanted()) this.touch = new TouchControls(this.ui, this.input, () => this.activate());
     this.ui.classList.toggle('touchmode', !!this.touch);
@@ -312,11 +316,22 @@ export class Game {
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.renderer.domElement.focus({ preventScroll: true });
     this.hud.refreshGoal();
-    if (!s.flags.onboarded) setTimeout(() => this.showHowTo(true), 500);
-    else {
-      this.showWalkHint();
-      this.guide.say(this.fill('هلا {name}! اضغط 🎤 وقول لي شو تبي{|ن}، وأنا أوديك.'), GUIDE_SUGGESTIONS, false);
-    }
+    const first = !s.flags.onboarded;
+    s.flags.onboarded = true;
+    setTimeout(() => void this.welcome(first, mic), 700);
+  }
+
+  /** The street greets the player by name, then asks what work they would like. */
+  private async welcome(first: boolean, mic: MicPermission): Promise<void> {
+    await this.guideSay(this.fill(first ? 'أهلاً بيك يا {name}!' : 'أهلاً بيك يا {name}، نوّرت{|ي} الفريج من جديد!'), [], false);
+    await new Promise((r) => setTimeout(r, 300));
+    if (this.talk || this.overlay) return;
+    const ask = this.fill('وش حاب{|ة} تشتغل{|ين}؟');
+    const canTalk = mic === 'granted' || (mic === 'prompt' && Mic.supported());
+    this.guide.invite(canTalk);
+    await this.guideSay(ask, ['أبي شغل أونلاين', 'أبي أساعد أهلي بالبيت', 'أبي شغل بشركة', 'شو في شغل على قدي؟'], false, `${ask} ${this.touch ? 'اضغط الزر البرتقالي' : 'اضغط زر 🎤 تكلم'} وقول لي بصوتك.`);
+    if (!canTalk) this.guide.focusInput(this.micProblem(mic === 'nomic' ? 'nomic' : mic === 'unsupported' ? 'unsupported' : 'denied'));
+    this.showWalkHint();
   }
 
   // ------------------------------------------------------------------ setup
@@ -333,6 +348,9 @@ export class Game {
   private applySettings(st: Settings): void {
     saveSettings(st);
     this.speechIn.lang = st.voiceLang;
+    const azure = st.azureKey ? { key: st.azureKey, region: st.azureRegion || 'uaenorth' } : null;
+    this.speechIn.azure = azure;
+    this.speechOut.azure = azure;
     this.speechOut.enabled = st.tts;
     this.speechOut.rateScale = st.ttsRate;
     this.sfx.setVolume(st.volume);
@@ -861,7 +879,10 @@ export class Game {
     this.sfx.micOn();
     this.panel.setListening(true);
     try {
-      const text = await this.speechIn.listen((i) => this.panel.setListening(true, i));
+      const text = await this.speechIn.listen(
+        (i) => this.panel.setListening(true, i),
+        (l) => this.panel.setLevel(l),
+      );
       this.panel.setListening(false);
       this.sfx.micOff();
       if (text) await this.send(text, true);
@@ -869,7 +890,7 @@ export class Game {
     } catch (e) {
       this.panel.setListening(false);
       const code = (typeof e === 'string' ? e : 'other') as MicError;
-      this.panel.setMicAvailable(code !== 'unsupported' && code !== 'denied', MIC_ERROR_TEXT[code] ?? MIC_ERROR_TEXT.other);
+      this.panel.setMicAvailable(code !== 'unsupported' && code !== 'denied', code === 'denied' || code === 'unsupported' || code === 'nomic' ? this.micProblem(code) : (MIC_ERROR_TEXT[code] ?? MIC_ERROR_TEXT.other));
       if (code === 'denied' || code === 'unsupported') {
         this.handsFree = false;
         this.panel.setHandsFree(false);
@@ -1652,11 +1673,11 @@ export class Game {
     return fillTemplate(t, this.store.s.player.gender, { name: this.store.s.player.name, ...vars });
   }
 
-  /** Say something as the guide: bubble plus voice. */
-  private guideSay(text: string, suggestions: string[] = [], keepYou = false): void {
-    this.guide.say(text, suggestions, keepYou);
+  /** Say something as the guide: bubble (optionally longer than the spoken line) plus voice. */
+  private guideSay(text: string, suggestions: string[] = [], keepYou = false, bubble = text): Promise<void> {
+    this.guide.say(bubble, suggestions, keepYou);
     const said = performance.now();
-    void this.speakLine(text, SANAD).then(() => {
+    return this.speakLine(text, SANAD).then(() => {
       // While walking, fold the bubble away once it has been heard (or had time to be read).
       const left = Math.max(1500, 7000 - (performance.now() - said));
       setTimeout(() => this.autoWalk && this.guide.hideBubble(), left);
@@ -1684,31 +1705,37 @@ export class Game {
       this.speechIn.stop();
       return;
     }
-    if (!SpeechInput.supported() || this.micBlocked) {
-      this.guide.focusInput(this.dictationHint());
+    this.guide.invite(false);
+    if (this.micBlocked) {
+      this.guide.focusInput(this.micProblem('denied'));
       return;
     }
     this.speechOut.cancel();
     this.sfx.micOn();
     this.guide.setListening(true);
     try {
-      const text = await this.speechIn.listen((i) => this.guide.setListening(true, i));
+      const text = await this.speechIn.listen(
+        (i) => this.guide.setListening(true, i),
+        (l) => this.guide.setLevel(l),
+      );
       this.guide.setListening(false);
       this.sfx.micOff();
       if (text) await this.askGuide(text, true);
-      else this.guide.say('ما سمعت شي. اضغط 🎤 وتكلم، أو اكتب طلبك.', GUIDE_SUGGESTIONS);
+      else this.guide.say('ما سمعت شي. اضغط 🎤 وتكلم بوضوح.', GUIDE_SUGGESTIONS);
     } catch (e) {
       this.guide.setListening(false);
       const code = (typeof e === 'string' ? e : 'other') as MicError;
-      if (code === 'denied' || code === 'unsupported') this.micBlocked = true;
-      this.guide.focusInput(this.micBlocked ? this.dictationHint() : (MIC_ERROR_TEXT[code] ?? MIC_ERROR_TEXT.other));
+      // Inside claude.ai the page can never get the mic; elsewhere the player can still allow it.
+      if (code === 'denied' && 'claude' in window) this.micBlocked = true;
+      if (code === 'denied' || code === 'unsupported' || code === 'nomic') this.guide.focusInput(this.micProblem(code));
+      else this.guide.say(MIC_ERROR_TEXT[code] ?? MIC_ERROR_TEXT.other, GUIDE_SUGGESTIONS, false);
     }
   }
 
-  /** Without a usable mic the keyboard's own dictation still works in the text box. */
-  private dictationHint(): string {
-    const why = 'claude' in window ? 'صفحة claude.ai ما تسمح للعبة تفتح المايك.' : 'المايك مو متاح بهالمتصفح.';
-    return `${why} اكتب طلبك بالمربع، أو تكلم بمايك الكيبورد: بالجوال اضغط 🎤 اللي بالكيبورد، بويندوز اضغط Win+H، وبالماك اضغط Fn مرتين.`;
+  /** Why the mic can't be used here, and what to do instead. */
+  private micProblem(code: 'denied' | 'unsupported' | 'nomic'): string {
+    if ('claude' in window) return `صفحة claude.ai ما تسمح بالمايك. للعب بصوتك افتح اللعبة من الرابط: ${GAME_URL} — والحين اكتب طلبك بالمربع، أو تكلم بمايك الكيبورد (بالجوال 🎤 اللي بالكيبورد، بويندوز Win+H، بالماك Fn مرتين).`;
+    return `${MIC_ERROR_TEXT[code]} والحين تقدر تكتب طلبك بالمربع.`;
   }
 
   private runGuide(actions: GuideAction[]): void {
@@ -1740,6 +1767,9 @@ export class Game {
           break;
         case 'invest':
           this.goToNpc('partner', null, () => this.openDeals());
+          break;
+        case 'help':
+          setTimeout(() => !this.overlay && !this.talk && this.showHowTo(), 1200);
           break;
         case 'openPhone':
           this.stopWalk();
@@ -2114,7 +2144,7 @@ export class Game {
   }
 
   /** How to play, shown once to new players (and on request). */
-  private showHowTo(first: boolean): void {
+  private showHowTo(): void {
     const k = (t: string) => h('kbd', t);
     const inClaude = 'claude' in window;
     this.openOverlay((root) => {
@@ -2130,13 +2160,6 @@ export class Game {
           h('div.row', h('button.btn', { type: 'button', id: 'howto-ok', onclick: () => ov.close() }, 'يلا نبدأ!')),
         ),
       );
-      ov.onClose = () => {
-        if (!first) return;
-        this.store.s.flags.onboarded = true;
-        this.renderer.domElement.focus({ preventScroll: true });
-        this.showWalkHint();
-        setTimeout(() => this.guideSay(this.fill('هلا {name}! أنا سند. قول لي شو تبي{|ن}، مثلاً «أبي شغل أونلاين يجيب 1000 درهم بالشهر»، وأنا أوديك وأبدأ لك.'), GUIDE_SUGGESTIONS), 300);
-      };
       return { ov };
     });
   }

@@ -23,6 +23,7 @@ export interface PhoneHandlers {
   testVoice(): void;
   close(): void;
   claudeStatus(): string;
+  voiceInfo(): { engine: 'azure' | 'device' | 'none'; voice: string; natural: boolean; lastError: string };
 }
 
 const TABS: [PhoneTab, string, string][] = [
@@ -202,6 +203,23 @@ export class Phone {
       changed();
       this.render();
     };
+    const info = this.handlers.voiceInfo();
+    const voiceNote =
+      info.engine === 'azure'
+        ? `✓ أصوات Azure العصبية: كل شخصية بلهجتها.${info.lastError ? ` (آخر خطأ: ${info.lastError}، رجعنا لصوت الجهاز)` : ''}`
+        : info.engine === 'none'
+          ? '⚠️ ما في صوت عربي بجهازك. افتح اللعبة بمتصفح Microsoft Edge (فيه أصوات عربية طبيعية مجانية)، أو بجوال أندرويد أو آيفون، أو حط مفتاح Azure تحت.'
+          : info.natural
+            ? `✓ صوت عربي طبيعي من جهازك: ${info.voice}`
+            : `الصوت الحالي آلي شوي: ${info.voice}. للصوت العربي الطبيعي افتح اللعبة بمتصفح Microsoft Edge (أصوات إماراتية طبيعية مجانية)، أو حط مفتاح Azure تحت.`;
+    const azKey = h('input.field', { type: 'password', id: 'azure-key', placeholder: 'مفتاح Azure Speech', autocomplete: 'off', value: st.azureKey }) as HTMLInputElement;
+    const azRegion = h('input.field', { type: 'text', id: 'azure-region', placeholder: 'uaenorth', autocomplete: 'off', value: st.azureRegion, style: 'direction:ltr' }) as HTMLInputElement;
+    azKey.onchange = azRegion.onchange = () => {
+      st.azureKey = azKey.value.trim();
+      st.azureRegion = azRegion.value.trim() || 'uaenorth';
+      changed();
+      this.render();
+    };
     const confirmBox = h('div.row');
     const resetBtn = h(
       'button.btn.ghost',
@@ -238,6 +256,14 @@ export class Phone {
         h('button.btn.secondary', { type: 'button', onclick: () => this.handlers.testVoice() }, 'جرّب صوت الشخصيات'),
       ),
       micResult,
+      h('div.tile', h('div.title', h('span.ico', '🗣️'), 'الأصوات العربية'), h('div.muted', voiceNote)),
+      h(
+        'div.setting',
+        h('label', { for: 'azure-key' }, 'أصوات Azure العصبية (اختياري)'),
+        azKey,
+        azRegion,
+        h('div.muted', 'مفتاح Azure Speech يعطي كل شخصية صوت حقيقي بلهجتها (إماراتي، كويتي، شامي، مصري…)، ويحوّل كلامك لنص بأي متصفح. المفتاح يتخزن بمتصفحك بس، والخطة المجانية تكفي للعب.'),
+      ),
       check('tts', 'الشخصيات تتكلم بصوت عالي', st.tts, (v) => (st.tts = v)),
       check('hands', 'محادثة صوتية مستمرة (المايك يفتح لحاله بعد كل رد)', st.handsFree, (v) => (st.handsFree = v)),
       h('div.setting', h('label', { for: 'rate' }, 'سرعة كلام الشخصيات'), select('rate', String(st.ttsRate), [{ v: '0.85', t: 'بطيء' }, { v: '1', t: 'عادي' }, { v: '1.15', t: 'سريع' }], (v) => (st.ttsRate = Number(v)))),

@@ -19,8 +19,19 @@ npm run dev          # http://localhost:5173
 | `npm run dev` | يشغّل اللعبة مع إعادة تحميل تلقائية |
 | `npm run build` | يفحص الأنواع ويبني نسخة ثابتة في `dist/` تنرفع على أي استضافة |
 | `npm run build:single` | ملف HTML واحد فيه كل شي (`dist-single/index.html`) |
+| `npm run build:pages` | ينسخ الملف الواحد لـ `docs/` عشان GitHub Pages |
 | `npm test` | اختبارات الفهم العربي والاقتصاد والشغل والحوار |
 | `npm run typecheck` | فحص TypeScript |
+
+## العب بصوتك (الرابط الكامل)
+
+**https://wannousibraheem67comjeni.github.io/TitanEarthfall/**
+
+هذا الرابط يفتح اللعبة بصفحة عادية. لما تضغط «ابدأ اللعب»، المتصفح يطلب منك إذن المايك الحقيقي من جهازك. بعدها اللعبة ترحب فيك باسمك («أهلاً بيك يا …!») وتسألك «وش حاب تشتغل؟». تضغط المايك وتقول اللي تبيه.
+
+- **الأصوات:** اللعبة تختار أحسن صوت عربي طبيعي موجود بجهازك. متصفح **Microsoft Edge** فيه أصوات عربية طبيعية مجانية (إماراتية وسعودية وكويتية…)، وكذلك أندرويد وآيفون. ولأصوات أحسن بكل متصفح، حط مفتاح **Azure Speech** بالإعدادات، وتصير كل شخصية بلهجتها: أمك إماراتية، أبو أحمد سوري، مازن لبناني، أبو علاء مصري.
+- **التعرف على الكلام:** يشتغل بكروم وإيدج وسفاري. وإذا حطيت مفتاح Azure، يشتغل بأي متصفح.
+- الرابط يشتغل بعد تفعيل GitHub Pages للمستودع: Settings ← Pages ← Deploy from a branch ← الفرع `ccr-66be1932-dm50ux` ومجلد `/docs`. ونسخة الصفحة تنبني بالأمر `npm run build:pages`.
 
 ## زر واحد: المايك
 
@@ -115,7 +126,7 @@ TypeScript, Three.js and Vite, with no image or audio files. Every texture is dr
 | `src/dialogue/` | Character definitions and lines, the offline brain, the optional Claude layer (`llm.ts`, `DialogueManager.ts`), and the guide «سند» (`guide.ts` parses requests into plans, `GuideBrain.ts` adds Claude with validated action keys) |
 | `src/game/` | Save state and economy rules (`state.ts`), the catalogue of jobs, items and upgrades, mini-game rules (`jobs/`), achievements, waypoint navigation for auto-walking (`Nav.ts`), the main loop (`Game.ts`) |
 | `src/world/` | Street layout, batched static geometry, procedural characters, sky and day/night cycle, collisions |
-| `src/voice/` | Web Speech API recognition and Arabic text-to-speech |
+| `src/voice/` | The real microphone (`mic.ts`: permission prompt, live level, WAV recording), speech recognition and Arabic voices (`speech.ts`: the device's most natural Arabic voice per character), optional Azure neural voices and speech-to-text (`azure.ts`) |
 | `src/ui/` | HUD, dialogue panel, the guide panel (`GuidePanel.ts`), phone, intro, touch controls, and the work screens (`minigames/`) |
 
 The offline brain always decides what happens in game terms (a sale, a gift, a job starting). When Claude is available it only writes the words, plus a few validated actions: offer a job, point the way, end the chat. A model therefore can never invent money. The guide works the same way: its offline parser computes the plan and the numbers, and Claude may only reword the reply and pick actions from a fixed list (`go_job:online`, `set_goal:1000:30:online`, …). Each action is checked before the game runs it.

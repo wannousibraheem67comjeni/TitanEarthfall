@@ -107,6 +107,11 @@ export class DialoguePanel {
     if (on && interim) this.youSaid(interim);
   }
 
+  setLevel(level: number): void {
+    this.micBtn.classList.toggle('metered', level > 0);
+    this.micBtn.style.setProperty('--lvl', level.toFixed(3));
+  }
+
   setMicAvailable(ok: boolean, note = ''): void {
     this.micBtn.classList.toggle('off', !ok);
     this.micNote.textContent = note;

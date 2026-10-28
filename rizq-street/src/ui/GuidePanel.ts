@@ -72,8 +72,20 @@ export class GuidePanel {
     this.el.insertBefore(el, this.bar);
   }
 
+  /** Live microphone level (0–1): the ring around the button grows with the voice. */
+  setLevel(level: number): void {
+    this.micBtn.classList.toggle('metered', level > 0);
+    this.micBtn.style.setProperty('--lvl', level.toFixed(3));
+  }
+
+  /** Draw the eye to the mic after the guide asks a question. */
+  invite(on: boolean): void {
+    this.micBtn.classList.toggle('invite', on);
+  }
+
   setListening(on: boolean, interim = ''): void {
     this.micBtn.classList.toggle('live', on);
+    if (!on) this.setLevel(0);
     this.micBtn.querySelector('.lbl')!.textContent = on ? 'أسمعك…' : 'تكلم';
     if (on) {
       this.showBubble();

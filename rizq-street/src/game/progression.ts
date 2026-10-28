@@ -56,13 +56,16 @@ export interface Settings {
   arabicDigits: boolean;
   quality: 'high' | 'low';
   labels: boolean;
+  /** Optional Azure Speech key and region: neural Arabic voices and cloud speech-to-text. */
+  azureKey: string;
+  azureRegion: string;
 }
 
 const SETTINGS_KEY = 'rizq-street.settings';
 
 export function defaultSettings(): Settings {
   const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-  return { voiceLang: 'ar-AE', tts: true, ttsRate: 1, handsFree: false, brain: 'auto', apiKey: '', apiModel: 'claude-opus-5-5', volume: 0.8, arabicDigits: false, quality: coarse ? 'low' : 'high', labels: true };
+  return { voiceLang: 'ar-AE', tts: true, ttsRate: 1, handsFree: false, brain: 'auto', apiKey: '', apiModel: 'claude-opus-5-5', volume: 0.8, arabicDigits: false, quality: coarse ? 'low' : 'high', labels: true, azureKey: '', azureRegion: 'uaenorth' };
 }
 
 export function loadSettings(): Settings {

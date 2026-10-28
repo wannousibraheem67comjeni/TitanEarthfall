@@ -23,6 +23,7 @@ export type GuideAction =
   | { type: 'move'; dir: MoveDir }
   | { type: 'openBoard' }
   | { type: 'invest' }
+  | { type: 'help' }
   | { type: 'sleep' }
   | { type: 'stop' };
 
@@ -225,7 +226,7 @@ export function guideRespond(text: string, store: Store, rng: Rng, last: JobId |
   if (has(norm, HELP_WORDS) && !specific.length) {
     return {
       text: say('بسيطة يا {name}: قول لي شو تبي{|ن} وأنا أوديك. مثلاً «أبي شغل أونلاين» أو «ودني لأمي» أو «أبي أشتغل توصيل». وإذا تبي{|ن} تمشي بنفسك، اضغط على أي مكان بالشاشة أو استخدم الأسهم.'),
-      actions: [],
+      actions: [{ type: 'help' }],
       suggestions: SUGGEST,
     };
   }

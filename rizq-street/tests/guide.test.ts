@@ -55,7 +55,7 @@ describe('guide', () => {
     const st = store();
     st.earn(120, 't');
     expect(guideRespond('كم معي فلوس؟', st, new Rng(6)).text).toContain('120');
-    expect(guideRespond('كيف العب؟', st, new Rng(6)).actions).toEqual([]);
+    expect(guideRespond('كيف العب؟', st, new Rng(6)).actions).toEqual([{ type: 'help' }]);
     expect(types(guideRespond('ابي اشتري دراجة', st, new Rng(6)).actions)).toContain('setGoal');
     st.earn(500, 't');
     expect(guideRespond('ابي اشتري دراجة', st, new Rng(6)).actions).toEqual([{ type: 'buy', upgrade: 'bike' }]);

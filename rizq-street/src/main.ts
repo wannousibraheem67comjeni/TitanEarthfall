@@ -9,7 +9,6 @@ import { Game } from './game/Game';
 import { loadSettings } from './game/progression';
 import { newState, Store } from './game/state';
 import { showIntro } from './ui/Intro';
-import { SpeechInput, MIC_ERROR_TEXT, type MicError } from './voice/speech';
 
 const root = document.getElementById('app')!;
 const loading = document.getElementById('loading')!;
@@ -54,22 +53,21 @@ async function boot(): Promise<void> {
   orbit();
 
   const saved = Store.load();
-  const mic = new SpeechInput();
-  mic.lang = settings.voiceLang;
-  const choice = await showIntro(root, saved ? { name: saved.player.name, day: saved.day, money: saved.wallet + saved.bank } : null, async () => {
-    if (!SpeechInput.supported()) throw MIC_ERROR_TEXT.unsupported;
-    try {
-      return await mic.listen(() => {});
-    } catch (e) {
-      throw MIC_ERROR_TEXT[(e as MicError) ?? 'other'] ?? MIC_ERROR_TEXT.other;
-    }
-  }, 'claude' in window);
+  const choice = await showIntro(
+    root,
+    saved ? { name: saved.player.name, gender: saved.player.gender, day: saved.day, money: saved.wallet + saved.bank } : null,
+    () => game.speechIn.requestPermission(),
+    () => {
+      game.sfx.unlock();
+      game.speechOut.unlock();
+    },
+    'claude' in window,
+  );
   spin = false;
-  game.sfx.unlock();
   game.sfx.startAmbience();
   const state = choice.continueSave && saved ? saved : newState(choice.name, choice.gender);
   const store = new Store(state);
-  game.start(store);
+  game.start(store, choice.mic);
   store.save();
 }
 
