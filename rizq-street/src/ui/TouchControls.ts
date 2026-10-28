@@ -57,6 +57,11 @@ export class TouchControls {
     parent.append(this.el);
   }
 
+  /** Extra buttons on top of the right-hand cluster (the guide's mic and keyboard). */
+  addTop(...buttons: HTMLElement[]): void {
+    this.el.querySelector('.touch-buttons')!.prepend(...buttons);
+  }
+
   setAction(label: string | null): void {
     this.act.hidden = !label;
     if (label) this.act.textContent = label;

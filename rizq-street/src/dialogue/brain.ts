@@ -216,6 +216,28 @@ export function opening(conv: Conversation, w: BrainWorld): Reply {
   return { text, actions, suggestions: suggestionsFor(conv, w), mood: 'happy' };
 }
 
+/**
+ * The guide brought the player here for a specific job: the character greets,
+ * offers it and takes the yes as given, or explains why it can't happen now.
+ */
+export function autoOffer(conv: Conversation, w: BrainWorld, id: JobId): Reply {
+  const { store, rng } = w;
+  const def = conv.speaker.kind === 'npc' ? conv.speaker.def : null;
+  if (!def) return { text: '', actions: [], suggestions: [], mood: 'neutral' };
+  const mem = store.npc(def.id);
+  mem.met = true;
+  mem.talks++;
+  mem.lastTalkDay = store.s.day;
+  conv.greeted = true;
+  const greet = render(conv, store, pick(rng, def.lines.greet));
+  const res = offerJob(conv, w, id);
+  if (!res.ok) return { text: `${greet} ${res.text}`, actions: [], suggestions: suggestionsFor(conv, w), mood: 'neutral' };
+  const p = conv.pending?.kind === 'job' ? conv.pending : null;
+  conv.pending = null;
+  const accepted = render(conv, store, pick(rng, def.lines.accepted));
+  return { text: `${greet} ${res.text} ${accepted}`, actions: [{ type: 'startJob', job: id, items: p?.items, cash: p?.cash }], suggestions: [], mood: 'happy' };
+}
+
 function hasErrandItems(store: Store): boolean {
   const e = store.s.errand;
   if (!e) return false;

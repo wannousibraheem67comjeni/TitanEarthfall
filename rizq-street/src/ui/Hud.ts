@@ -41,7 +41,7 @@ export class Hud {
   private readonly objText = h('span');
   private readonly objTimer = h('span.timer');
   private readonly objCancel = h('button.cancel', 'إلغاء');
-  private readonly prompt = h('button.chip.prompt');
+  readonly prompt = h('button.chip.prompt');
   private readonly promptKey = h('span.key', 'E');
   private readonly promptText = h('span');
   private readonly promptBar = h('span.progress', h('i'));
@@ -62,12 +62,19 @@ export class Hud {
   private shownWallet = -1;
   onPrompt: (() => void) | null = null;
   onCancel: (() => void) | null = null;
+  /** Clicking the big map at a street position (x, z); true when handled. */
+  onMapPick: ((x: number, z: number) => boolean) | null = null;
+  private readonly goalEl = h('div.goal');
+  private readonly goalText = h('span');
+  private readonly goalFill = h('i');
 
   constructor(
     parent: HTMLElement,
     private readonly store: Store,
   ) {
-    this.walletEl.append(h('span.label', 'محفظتي'), h('div.amount', this.amountEl, h('small', 'درهم')), this.notesEl, h('div.bank', h('span', 'في البنك'), this.bankEl));
+    this.goalEl.append(this.goalText, h('span.bar', this.goalFill));
+    this.goalEl.hidden = true;
+    this.walletEl.append(h('span.label', 'محفظتي'), h('div.amount', this.amountEl, h('small', 'درهم')), this.notesEl, h('div.bank', h('span', 'في البنك'), this.bankEl), this.goalEl);
     const clock = h('div.chip.clock', this.dayEl, this.timeEl, h('span.rep', 'السمعة', h('span.bar', this.repFill)));
     this.objective.append(this.objText, this.objTimer, this.objCancel);
     this.objective.hidden = true;
@@ -84,7 +91,17 @@ export class Hud {
     this.arrow.hidden = true;
     this.map.width = 336;
     this.map.height = 336;
-    this.map.onclick = () => this.toggleMap();
+    this.map.onclick = (e) => {
+      if (this.bigMap && this.onMapPick) {
+        const r = this.map.getBoundingClientRect();
+        const W = this.map.width;
+        const scale = W / 250;
+        const x = -5 + (((e.clientX - r.left) / r.width) * W - W / 2) / scale;
+        const z = 30 + (((e.clientY - r.top) / r.height) * W - W / 2) / scale;
+        if (this.onMapPick(x, z)) return this.toggleMap(false);
+      }
+      this.toggleMap();
+    };
     this.mapBtn.onclick = () => this.toggleMap();
     this.el.append(this.labels, this.walletEl, clock, this.map, this.objective, this.prompt, this.staminaEl, toolbar, this.toasts, this.arrow);
     parent.append(this.el);
@@ -104,7 +121,17 @@ export class Hud {
     return this.bigMap;
   }
 
+  /** The savings goal under the wallet: earned so far, target, days left. */
+  refreshGoal(): void {
+    const g = this.store.goalProgress();
+    this.goalEl.hidden = !g;
+    if (!g) return;
+    this.goalText.textContent = `🎯 ${formatNumber(g.got)} / ${formatNumber(g.amount)} · باقي ${formatNumber(g.daysLeft)} يوم`;
+    this.goalFill.style.width = `${Math.min(100, (g.got / g.amount) * 100)}%`;
+  }
+
   refreshMoney(animate: boolean): void {
+    this.refreshGoal();
     const s = this.store.s;
     if (s.wallet === this.shownWallet) {
       this.bankEl.textContent = formatNumber(s.bank);

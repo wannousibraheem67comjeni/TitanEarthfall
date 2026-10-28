@@ -9,7 +9,7 @@ import { formatMoney } from '../lang/arabic';
 import { job, JOB_BY_ID, type JobId } from '../game/catalog';
 import type { Store } from '../game/state';
 import { PLACE_BY_ID, PLACES, type PlaceId } from '../world/layout';
-import { castSummary, formatClock, newConversation, opening, respond, speakerGender, type Action, type Conversation, type Reply, type Speaker } from './brain';
+import { autoOffer, castSummary, formatClock, newConversation, opening, respond, speakerGender, type Action, type Conversation, type Reply, type Speaker } from './brain';
 import type { LlmBackend, LlmTurn } from './llm';
 
 export interface Turn extends Reply {
@@ -34,6 +34,15 @@ export class DialogueManager {
     this.close();
     this.conv = newConversation(speaker, this.store);
     const r = opening(this.conv, { store: this.store, rng: this.rng });
+    this.conv.turns.push({ who: 'npc', text: r.text });
+    return { ...r, source: 'offline' };
+  }
+
+  /** Open a conversation in which the character offers `job` straight away. */
+  openWithOffer(speaker: Speaker, jobId: JobId): Turn {
+    this.close();
+    this.conv = newConversation(speaker, this.store);
+    const r = autoOffer(this.conv, { store: this.store, rng: this.rng }, jobId);
     this.conv.turns.push({ who: 'npc', text: r.text });
     return { ...r, source: 'offline' };
   }

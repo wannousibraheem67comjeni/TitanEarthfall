@@ -22,6 +22,17 @@ npm run dev          # http://localhost:5173
 | `npm test` | اختبارات الفهم العربي والاقتصاد والشغل والحوار |
 | `npm run typecheck` | فحص TypeScript |
 
+## سند: قول شو تبي وهو يوديك
+
+أسهل طريقة تلعب فيها: اضغط زر **🎤 تكلم** تحت (أو مفتاح **V**)، أو اكتب بالمربع واضغط **Enter**، وقول لسند شو تبي:
+
+- «أريد شغل أونلاين يكسبني حوالي 1000 درهم كل شهر». سند يحسب لك الخطة (1000 بالشهر = حوالي 33 باليوم = مرتين شغل)، ويحط الهدف تحت محفظتك. بعدين يمشّيك للابتوب بحوش البيت، وأول مرة منصة «شغلني» تسوي لك **اختبار قبول** من أربع أسئلة قبل ما تعطيك طلبات.
+- «أبي أشتغل توصيل»، «ودني لأمي»، «وين أحسن شغل الحين؟»، «كم معي فلوس؟»، «أبي أشتري دراجة»، «وقف».
+
+سند يمشّيك لحاله. الطريق ينحسب على الرصيف ومعابر الشارع، وزر **⏩ وصّلني الحين** يختصر المشي. أول ما توصل، صاحب الشغل يعرض عليك الشغل ويبدأ على طول. وإذا الشغل مسكّر الحين، سند يقول لك متى يفتح ويقترح شغل ثاني مفتوح.
+
+**امشِ بضغطة:** اضغط على أي مكان أو شخص بالشاشة وتمشي له. وإذا ضغطت على شخص، تكلمه أول ما توصل. وبالخريطة الكبيرة (**M**) اضغط على أي مكان وتروح له.
+
 ## طرق كسب الفلوس
 
 | الشغل | عند مين | وين | ملاحظات |
@@ -57,18 +68,21 @@ npm run dev          # http://localhost:5173
 1. **بدون إنترنت:** محرك فهم عربي داخل اللعبة (`src/lang`). يوحّد الإملاء ويفهم لهجات الخليج والشام ومصر والفصحى، والأرقام المكتوبة والمنطوقة («خمسة وعشرين»، «ميتين وخمسين»، «خمسطعش»). كل شخصية لها كلامها ولهجتها.
 2. **Claude:** إذا لعبت داخل claude.ai، الشخصيات تتكلم بذكاء Claude من حسابك بدون أي مفتاح. وبرا claude.ai تقدر تحط مفتاح Anthropic API بالإعدادات (يتخزن بمتصفحك بس). في الحالتين محرك اللعبة هو اللي يقرر الفلوس والشغل، وClaude يكتب الكلام. لذلك الشخصية ما تقدر تعطيك فلوس من عندها.
 
-ملاحظة: داخل عارض claude.ai المتصفح يمنع المايك، فهناك تكتب كلامك والشخصيات ترد بصوت. للعب بالصوت كامل شغّل اللعبة على جهازك.
+ملاحظة: داخل عارض claude.ai المتصفح يمنع اللعبة تفتح المايك. هناك تقدر تكتب، أو تتكلم بمايك الكيبورد نفسه وهو يكتب كلامك بالمربع: بالجوال اضغط 🎤 اللي بالكيبورد، بويندوز **Win+H**، وبالماك **Fn** مرتين. والشخصيات ترد عليك بصوت. وإذا تبي المايك يشتغل من داخل اللعبة، شغّلها على جهازك أو على أي استضافة.
 
 ## التحكم
 
 | | |
 |---|---|
+| 🎤 تكلم / V | اطلب من سند بصوتك |
+| Enter | اكتب طلبك لسند |
+| ضغطة على الشاشة | امشِ للمكان أو للشخص |
 | W A S D / الأسهم | المشي |
 | Shift | الركض |
 | Space | القفز |
 | E | تفاعل / كلام / شغل |
 | T | كلّم أقرب شخص |
-| V | اضغط مطولاً وتكلم |
+| V (أثناء الكلام مع شخص) | اضغط مطولاً وتكلم معه |
 | Tab | الجوال: الأهداف، الشغل، المتجر، المحفظة، الإنجازات، الإعدادات |
 | M | الخريطة |
 | B | الدراجة أو السكوتر |
@@ -83,10 +97,10 @@ TypeScript, Three.js and Vite, with no image or audio files. Every texture is dr
 | Folder | What it holds |
 |---|---|
 | `src/lang/` | Arabic normalisation, number words in Gulf, Levantine, Egyptian and MSA forms, and intent detection |
-| `src/dialogue/` | Character definitions and lines, the offline brain, the optional Claude layer (`llm.ts`, `DialogueManager.ts`) |
-| `src/game/` | Save state and economy rules (`state.ts`), the catalogue of jobs, items and upgrades, mini-game rules (`jobs/`), achievements, the main loop (`Game.ts`) |
+| `src/dialogue/` | Character definitions and lines, the offline brain, the optional Claude layer (`llm.ts`, `DialogueManager.ts`), and the guide «سند» (`guide.ts` parses requests into plans, `GuideBrain.ts` adds Claude with validated action keys) |
+| `src/game/` | Save state and economy rules (`state.ts`), the catalogue of jobs, items and upgrades, mini-game rules (`jobs/`), achievements, waypoint navigation for auto-walking (`Nav.ts`), the main loop (`Game.ts`) |
 | `src/world/` | Street layout, batched static geometry, procedural characters, sky and day/night cycle, collisions |
 | `src/voice/` | Web Speech API recognition and Arabic text-to-speech |
-| `src/ui/` | HUD, dialogue panel, phone, intro, touch controls, and the work screens (`minigames/`) |
+| `src/ui/` | HUD, dialogue panel, the guide panel (`GuidePanel.ts`), phone, intro, touch controls, and the work screens (`minigames/`) |
 
-The offline brain always decides what happens in game terms (a sale, a gift, a job starting). When Claude is available it only writes the words, plus a few validated actions: offer a job, point the way, end the chat. A model therefore can never invent money.
+The offline brain always decides what happens in game terms (a sale, a gift, a job starting). When Claude is available it only writes the words, plus a few validated actions: offer a job, point the way, end the chat. A model therefore can never invent money. The guide works the same way: its offline parser computes the plan and the numbers, and Claude may only reword the reply and pick actions from a fixed list (`go_job:online`, `set_goal:1000:30:online`, …). Each action is checked before the game runs it.

@@ -32,6 +32,8 @@ export class Player {
   /** Temporary speed bonus after a snack (seconds left). */
   boost = 0;
   frozen = false;
+  /** Running costs no breath (while the guide walks the player somewhere). */
+  tireless = false;
 
   constructor(look: Look) {
     this.char = new Character(look);
@@ -82,7 +84,7 @@ export class Player {
       const canRun = run && this.stamina > 3 && this.ride === 'none';
       const base = this.ride === 'bike' ? SPEEDS.bike : this.ride === 'scooter' ? SPEEDS.scooter : canRun ? SPEEDS.run : SPEEDS.walk;
       target = base * speedMul * Math.min(1, mag) * (this.boost > 0 ? 1.15 : 1);
-      if (canRun) this.stamina = Math.max(0, this.stamina - 13 * dt);
+      if (canRun && !this.tireless) this.stamina = Math.max(0, this.stamina - 13 * dt);
     }
     if (!(run && mag > 0.05)) this.stamina = Math.min(this.staminaMax, this.stamina + 9 * dt);
     this.boost = Math.max(0, this.boost - dt);

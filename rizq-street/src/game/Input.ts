@@ -19,6 +19,9 @@ export class Input {
   private lastY = 0;
   /** Extra pointer-down handler (scrubbing a car, for instance) gets first refusal. */
   onPointer: ((e: PointerEvent, phase: 'down' | 'move' | 'up') => boolean) | null = null;
+  /** A quick tap or click on the view without dragging (walk there). */
+  onTap: ((x: number, y: number) => void) | null = null;
+  private tap: { id: number; x: number; y: number; t: number } | null = null;
 
   constructor(el: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -31,7 +34,9 @@ export class Input {
     window.addEventListener('blur', () => this.down.clear());
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {
+      el.focus({ preventScroll: true });
       if (this.onPointer?.(e, 'down')) return;
+      if (e.isPrimary && e.button === 0) this.tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
       if (this.dragId !== null) return;
       this.dragId = e.pointerId;
       this.lastX = e.clientX;
@@ -49,6 +54,9 @@ export class Input {
     const end = (e: PointerEvent) => {
       this.onPointer?.(e, 'up');
       if (e.pointerId === this.dragId) this.dragId = null;
+      const t = this.tap;
+      this.tap = null;
+      if (e.type === 'pointerup' && t && t.id === e.pointerId && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10 && performance.now() - t.t < 400) this.onTap?.(e.clientX, e.clientY);
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);

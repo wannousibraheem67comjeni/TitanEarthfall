@@ -65,6 +65,8 @@ export interface GameState {
   ledger: LedgerEntry[];
   /** Mum's shopping list while an errand is running. */
   errand: { items: ItemId[]; cash: number } | null;
+  /** A savings goal the player set by asking the guide ("1000 درهم بالشهر"). */
+  goal: { amount: number; days: number; startDay: number; startEarned: number; job: JobId | null } | null;
   pos: { x: number; z: number; heading: number } | null;
 }
 
@@ -102,6 +104,7 @@ export function newState(name: string, gender: Gender): GameState {
     stats: {},
     ledger: [],
     errand: null,
+    goal: null,
     pos: null,
   };
 }
@@ -200,6 +203,17 @@ export class Store extends Emitter<StoreEvents> {
     this.log(-amount, 'إيداع بالصراف', false);
     this.emit('money', { delta: -amount, label: 'إيداع بالصراف', bank: false, wallet: this.s.wallet, balance: this.s.bank });
     return true;
+  }
+
+  setGoal(amount: number, days: number, jobId: JobId | null): void {
+    this.s.goal = { amount: Math.round(amount), days: Math.max(1, Math.round(days)), startDay: this.s.day, startEarned: this.s.earnedTotal, job: jobId };
+  }
+
+  /** Progress toward the goal: earned since it was set, and days left. */
+  goalProgress(): { got: number; amount: number; daysLeft: number } | null {
+    const g = this.s.goal;
+    if (!g) return null;
+    return { got: Math.max(0, this.s.earnedTotal - g.startEarned), amount: g.amount, daysLeft: Math.max(0, g.startDay + g.days - this.s.day) };
   }
 
   get netWorth(): number {

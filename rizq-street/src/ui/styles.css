@@ -207,7 +207,21 @@ select:focus-visible {
   opacity: 0.9;
 }
 
+.wallet .goal {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(246, 234, 210, 0.18);
+  font-size: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.wallet .goal .bar {
+  width: 100%;
+}
+
 .rep .bar,
+.wallet .goal .bar,
 .stamina .bar {
   width: 64px;
   height: 6px;
@@ -217,6 +231,7 @@ select:focus-visible {
 }
 
 .rep .bar i,
+.wallet .goal .bar i,
 .stamina .bar i {
   display: block;
   height: 100%;
@@ -1702,6 +1717,299 @@ select.field {
 }
 
 /* ------------------------------------------------------------- small screens */
+
+/* -------------------------------------------------------------- guide (سند) */
+
+.guide {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(600px, max(320px, calc(100vw - 420px)));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.guide > * {
+  pointer-events: auto;
+}
+
+.guide .prompt {
+  position: static;
+  transform: none;
+  align-self: center;
+}
+
+.guide-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 7px;
+  border-radius: 40px;
+  background: var(--night);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.guide-bar .field {
+  flex: 1;
+  min-width: 0;
+  border-radius: 30px;
+  border-color: transparent;
+  padding: 10px 16px;
+  font-size: 15.5px;
+}
+
+.guide-send {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  border: 0;
+  background: var(--green);
+  color: #fff;
+  font-size: 18px;
+  transform: scaleX(-1);
+}
+
+.guide-mic {
+  flex: none;
+  height: 56px;
+  min-width: 56px;
+  padding: 0 14px 0 18px;
+  border-radius: 30px;
+  border: 0;
+  background: var(--karak);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: 600 16px var(--body);
+  box-shadow: 0 4px 0 #8f4312;
+}
+
+.guide-mic .ico {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.guide-mic.live {
+  background: var(--red);
+  box-shadow: 0 0 0 0 rgba(194, 59, 46, 0.6);
+  animation: pulse 1.2s infinite;
+}
+
+.guide-bubble {
+  background: var(--sand);
+  color: var(--ink);
+  border: 2px solid var(--sand-3);
+  border-radius: 18px;
+  padding: 8px 14px 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-height: 42vh;
+  overflow: auto;
+  animation: rise 0.25s ease-out;
+}
+
+.guide-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.guide-head .x {
+  margin-inline-start: auto;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+}
+
+.guide-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font: 400 18px var(--display);
+}
+
+.guide-you {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+
+.guide-you:empty,
+.guide-chips:empty {
+  display: none;
+}
+
+.guide-text {
+  font-size: 16.5px;
+  line-height: 1.65;
+}
+
+.guide-text.thinking {
+  opacity: 0.5;
+}
+
+.guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.guide-chips button {
+  border: 1.5px solid var(--green);
+  background: #fff;
+  color: var(--green-2);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font: 500 13.5px var(--body);
+}
+
+.guide-walk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 30px;
+  background: var(--night);
+  color: #f6ead2;
+  font-size: 14.5px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.guide-walk .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-walk .btn {
+  padding: 7px 12px;
+  font-size: 13.5px;
+  border-radius: 20px;
+}
+
+/* On touch screens the mic and keyboard buttons join the right-hand cluster; the
+   bubble, the walk chip and (while typing) the text box sit at the top, above the
+   on-screen keyboard. */
+.guide.touch {
+  left: 8px;
+  right: 8px;
+  top: calc(8px + var(--safe-t));
+  bottom: auto;
+  transform: none;
+  width: auto;
+  z-index: 30;
+}
+
+.guide.touch .guide-bar {
+  display: none;
+  order: -1;
+}
+
+.guide.touch .guide-bubble {
+  max-height: 36vh;
+}
+
+.guide.touch .guide-text {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.guide.touch.typing .guide-bar {
+  display: flex;
+}
+
+.touch-buttons button.guide-mic {
+  background: var(--karak);
+  border-color: rgba(255, 255, 255, 0.55);
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  font: 600 11px var(--body);
+  box-shadow: 0 4px 0 #8f4312;
+}
+
+.touch-buttons button.guide-mic.live {
+  background: var(--red);
+}
+
+.touch-buttons button.guide-kb {
+  font-size: 24px;
+}
+
+/* ------------------------------------------------------------- onboarding */
+
+.howto {
+  display: grid;
+  gap: 10px;
+}
+
+.howto .step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  line-height: 1.6;
+}
+
+.howto .step > span:first-child {
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.howto kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--sand-2);
+  border: 1px solid var(--sand-3);
+  font: 600 13px var(--body);
+  text-align: center;
+  direction: ltr;
+}
+
+.tap-ring {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px;
+  border-radius: 50%;
+  border: 3px solid #ffd34d;
+  pointer-events: none;
+  animation: tap-ring 0.6s ease-out forwards;
+  z-index: 9;
+}
+
+@keyframes tap-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
 
 @media (max-width: 760px) {
   .objective {
