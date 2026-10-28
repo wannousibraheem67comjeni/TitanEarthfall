@@ -1,0 +1,47 @@
+plugins {
+    id "com.android.application"
+}
+
+// Release signing comes from environment variables set by CI (see .github/workflows/android.yml).
+def keystorePath = System.getenv("LABRO_KEYSTORE_PATH")
+
+android {
+    namespace "com.athoss.labrophone"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.athoss.labrophone"
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("LABRO_VERSION_CODE") ?: "1")
+        versionName "1.0." + (System.getenv("LABRO_VERSION_CODE") ?: "1")
+        buildConfigField "String", "SITE_URL", "\"https://wannousibraheem67comjeni.github.io/TitanEarthfall/\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("LABRO_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("LABRO_KEY_ALIAS")
+                keyPassword System.getenv("LABRO_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystorePath) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

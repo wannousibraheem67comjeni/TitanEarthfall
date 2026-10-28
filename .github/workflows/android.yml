@@ -1,0 +1,57 @@
+name: Android build
+
+on:
+  push:
+    branches: [labrophone]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LABRO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/labrophone.jks"
+            echo "LABRO_KEYSTORE_PATH=$RUNNER_TEMP/labrophone.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::LABRO_KEYSTORE_BASE64 is not set; release builds will be unsigned."
+          fi
+
+      - name: Build APK and AAB
+        working-directory: android
+        env:
+          LABRO_VERSION_CODE: ${{ github.run_number }}
+          LABRO_KEYSTORE_PASSWORD: ${{ secrets.LABRO_KEYSTORE_PASSWORD }}
+          LABRO_KEY_ALIAS: ${{ secrets.LABRO_KEY_ALIAS }}
+          LABRO_KEY_PASSWORD: ${{ secrets.LABRO_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleDebug assembleRelease bundleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labrophone-apk-install
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labrophone-apk-release
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labrophone-aab
+          path: android/app/build/outputs/bundle/release/*.aab

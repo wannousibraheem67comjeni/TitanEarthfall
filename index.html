@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لابروفون</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+/* Layout: one column for sign-in and the call list; the call view widens to a video grid with chat beside it. */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --fg: #1d2620;
+  --muted: #5f6b63;
+  --line: #d9dfd9;
+  --accent: #1f6b52;
+  --accent-fg: #ffffff;
+  --danger: #b2382a;
+  --danger-fg: #ffffff;
+  --stage: #17201b;
+  --stage-fg: #e9efe9;
+  --display: "Reem Kufi", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  --body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #121714; --surface: #1a211d; --fg: #e6ece7; --muted: #9aa69e; --line: #2c3530; --accent: #5cc39c; --accent-fg: #0d1a14; --danger: #e0705f; --danger-fg: #1a0d0b; --stage: #0b0f0d; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #121714; --surface: #1a211d; --fg: #e6ece7; --muted: #9aa69e; --line: #2c3530; --accent: #5cc39c; --accent-fg: #0d1a14; --danger: #e0705f; --danger-fg: #1a0d0b; --stage: #0b0f0d; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font: 16px/1.7 var(--body);
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(32px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+main.wide { max-width: 1100px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font: 700 2rem/1.2 var(--display); margin: 0; }
+h1 a { color: var(--accent); text-decoration: none; }
+h2 { font: 600 1.2rem/1.4 var(--display); margin: 0; }
+.stack { display: grid; gap: 16px; }
+.who { color: var(--muted); font-size: .95rem; display: flex; gap: 10px; align-items: center; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; font: inherit; color: var(--muted); cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); font-weight: 600; }
+form { display: grid; gap: 10px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > input { flex: 1 1 200px; min-width: 0; }
+label { font-size: .9rem; color: var(--muted); display: grid; gap: 4px; }
+input, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn { font: 600 1rem var(--body); background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; justify-self: start; }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn.danger { background: var(--danger); color: var(--danger-fg); }
+.btn.off { background: var(--muted); color: var(--bg); }
+.btn:disabled { opacity: .55; cursor: default; }
+.link { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+.note { font-size: .9rem; color: var(--muted); margin: 0; }
+.error { color: var(--danger); font-size: .92rem; margin: 0; }
+.copybox { display: flex; gap: 8px; flex-wrap: wrap; }
+.copybox input { flex: 1 1 220px; min-width: 0; direction: ltr; font-size: .9rem; }
+ul.calls { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+ul.calls li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 8px; }
+ul.calls li:first-child { border-top: 0; padding-top: 0; }
+ul.calls a { color: var(--accent); font-weight: 600; }
+ul.calls .when { color: var(--muted); font-size: .85rem; }
+.stage { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.tile { position: relative; background: var(--stage); border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3; max-width: 100%; }
+.tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile.me video { transform: scaleX(-1); }
+.tile .tag { position: absolute; bottom: 8px; right: 8px; background: rgba(0, 0, 0, .55); color: var(--stage-fg); font-size: .85rem; padding: 2px 10px; border-radius: 6px; }
+.tile .avatar { position: absolute; inset: 0; display: grid; place-items: center; color: var(--stage-fg); font: 700 2.4rem var(--display); background: var(--stage); }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.call-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+@media (max-width: 820px) { .call-layout { grid-template-columns: minmax(0, 1fr); } }
+ol.chat { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
+ol.chat li { min-width: 0; }
+ol.chat .meta { font-size: .8rem; color: var(--muted); }
+ol.chat .meta strong { color: var(--fg); font-weight: 600; margin-left: 6px; }
+ol.chat p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.count { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main id="main">
+  <header>
+    <h1><a href="./">لابروفون</a></h1>
+    <div class="who" id="who" hidden><span>أهلاً <strong id="me-name"></strong></span><button class="link" id="sign-out" type="button">خروج</button></div>
+  </header>
+
+  <section class="card" id="auth" hidden>
+    <h2 id="auth-title">ادخل لتبدأ مكالمة</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="quick" aria-selected="true">دخول بالاسم</button>
+      <button type="button" role="tab" data-tab="login" aria-selected="false">لدي حساب</button>
+      <button type="button" role="tab" data-tab="signup" aria-selected="false">حساب جديد</button>
+    </div>
+    <form id="quick-form" data-panel="quick">
+      <label>اسمك<input id="quick-name" maxlength="40" required autocomplete="nickname" placeholder="مثلاً: أحمد"></label>
+      <button class="btn" type="submit">ادخل</button>
+      <p class="note">الدخول بالاسم يبقى محفوظاً على هذا الجهاز فقط. أنشئ حساباً لتدخل من أي جهاز.</p>
+    </form>
+    <form id="login-form" data-panel="login" hidden>
+      <label>البريد الإلكتروني<input id="login-email" type="email" required autocomplete="email" dir="ltr"></label>
+      <label>كلمة السر<input id="login-pass" type="password" required autocomplete="current-password" dir="ltr"></label>
+      <button class="btn" type="submit">دخول</button>
+    </form>
+    <form id="signup-form" data-panel="signup" hidden>
+      <label>اسمك<input id="signup-name" maxlength="40" required autocomplete="name"></label>
+      <label>البريد الإلكتروني<input id="signup-email" type="email" required autocomplete="email" dir="ltr"></label>
+      <label>كلمة السر (6 أحرف على الأقل)<input id="signup-pass" type="password" minlength="6" required autocomplete="new-password" dir="ltr"></label>
+      <button class="btn" type="submit">إنشاء الحساب</button>
+    </form>
+    <p class="error" id="auth-error" role="alert" hidden></p>
+    <p class="note" id="auth-info" hidden></p>
+  </section>
+
+  <section class="stack" id="home" hidden>
+    <div class="card">
+      <h2>مكالمة جديدة</h2>
+      <form id="new-call-form" class="row">
+        <input id="new-call-title" maxlength="80" placeholder="اسم المكالمة (اختياري)">
+        <button class="btn" type="submit">أنشئ الرابط</button>
+      </form>
+      <p class="error" id="home-error" role="alert" hidden></p>
+    </div>
+    <div class="card">
+      <h2>مكالماتي</h2>
+      <ul class="calls" id="my-calls"></ul>
+      <p class="note" id="no-calls" hidden>لم تنشئ أي مكالمة بعد. أنشئ واحدة وشارك رابطها.</p>
+    </div>
+  </section>
+
+  <section class="stack" id="call" hidden>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="call-title"></h2>
+        <span class="count" id="call-count"></span>
+      </div>
+      <div class="copybox">
+        <input id="call-link" readonly aria-label="رابط المكالمة">
+        <button class="btn ghost" type="button" id="copy-link">انسخ الرابط</button>
+      </div>
+      <p class="note">أرسل هذا الرابط لمن تريد. يفتحه، يكتب اسمه، ويدخل المكالمة.</p>
+    </div>
+
+    <div class="card" id="prejoin">
+      <p style="margin:0">سيطلب المتصفح إذن الميكروفون والكاميرا عند الانضمام.</p>
+      <div class="row">
+        <button class="btn" type="button" id="join-video">انضم بالصوت والصورة</button>
+        <button class="btn ghost" type="button" id="join-audio">بالصوت فقط</button>
+      </div>
+      <p class="error" id="call-error" role="alert" hidden></p>
+    </div>
+
+    <div class="call-layout" id="in-call" hidden>
+      <div class="stack" style="min-width:0">
+        <div class="stage" id="stage"></div>
+        <div class="controls">
+          <button class="btn ghost" type="button" id="toggle-mic">كتم الصوت</button>
+          <button class="btn ghost" type="button" id="toggle-cam">إيقاف الكاميرا</button>
+          <button class="btn danger" type="button" id="leave">مغادرة</button>
+        </div>
+      </div>
+      <aside class="card">
+        <h2>الدردشة</h2>
+        <ol class="chat" id="chat"></ol>
+        <form id="chat-form" class="row">
+          <input id="chat-body" maxlength="500" required placeholder="اكتب رسالة" autocomplete="off">
+          <button class="btn" type="submit">إرسال</button>
+        </form>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script>
+// The publishable key is meant for browsers; row level security protects the data.
+const SUPABASE_URL = "https://puwbkptyakmhbyhtnked.supabase.co";
+const SUPABASE_KEY = "sb_publishable_nbWNxHMdGF0OFV-HbW_kFw_vpQUHWpR";
+// Shared call links always point at the public site, even from inside the mobile app.
+const PUBLIC_URL = window.LABRO_PUBLIC_URL || (location.origin + location.pathname);
+const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = (id) => document.getElementById(id);
+const callId = new URLSearchParams(location.search).get("call");
+const names = new Map();
+let me = null;
+
+function show(el, text) { el.textContent = text; el.hidden = !text; }
+function linkFor(id) { return PUBLIC_URL + "?call=" + encodeURIComponent(id); }
+function localLink(id) { return location.pathname + "?call=" + encodeURIComponent(id); }
+
+function arabicError(err) {
+  const m = (err && (err.message || err.name)) || String(err || "");
+  if (/Invalid login/i.test(m)) return "البريد أو كلمة السر غير صحيحة.";
+  if (/already registered/i.test(m)) return "هذا البريد مسجل مسبقاً. اختر «لدي حساب».";
+  if (/Email not confirmed/i.test(m)) return "افتح بريدك واضغط رابط التأكيد أولاً.";
+  if (/Anonymous sign-ins are disabled/i.test(m)) return "الدخول بالاسم غير مفعّل بعد. أنشئ حساباً بالبريد.";
+  if (/call not found/i.test(m)) return "هذه المكالمة غير موجودة. تأكد من الرابط.";
+  if (/NotAllowed|Permission denied/i.test(m)) return "لم يُسمح بالميكروفون أو الكاميرا. اسمح بهما من إعدادات المتصفح ثم حاول مجدداً.";
+  if (/NotFound/i.test(m)) return "لم نجد ميكروفوناً أو كاميرا على هذا الجهاز.";
+  return "حدث خطأ: " + m;
+}
+
+// ---------- Sign in ----------
+document.querySelectorAll("[data-tab]").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    document.querySelectorAll("[data-panel]").forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+    show($("auth-error"), "");
+  });
+});
+
+async function saveProfile(userId, displayName) {
+  const { error } = await sb.from("labro_profiles").upsert({ id: userId, display_name: displayName });
+  if (error) throw error;
+  names.set(userId, displayName);
+}
+
+function busy(form, fn) {
+  return async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    show($("auth-error"), "");
+    try { await fn(); } catch (err) { show($("auth-error"), arabicError(err)); }
+    finally { btn.disabled = false; }
+  };
+}
+
+$("quick-form").addEventListener("submit", busy($("quick-form"), async () => {
+  const name = $("quick-name").value.trim();
+  const { data, error } = await sb.auth.signInAnonymously();
+  if (error) throw error;
+  await saveProfile(data.user.id, name);
+  await enter(data.user);
+}));
+
+$("login-form").addEventListener("submit", busy($("login-form"), async () => {
+  const { data, error } = await sb.auth.signInWithPassword({ email: $("login-email").value.trim(), password: $("login-pass").value });
+  if (error) throw error;
+  await enter(data.user);
+}));
+
+$("signup-form").addEventListener("submit", busy($("signup-form"), async () => {
+  const name = $("signup-name").value.trim();
+  const { data, error } = await sb.auth.signUp({
+    email: $("signup-email").value.trim(),
+    password: $("signup-pass").value,
+    options: { data: { display_name: name }, emailRedirectTo: callId ? linkFor(callId) : PUBLIC_URL },
+  });
+  if (error) throw error;
+  if (data.session) {
+    await saveProfile(data.user.id, name);
+    await enter(data.user);
+  } else {
+    show($("auth-info"), "أرسلنا رابط تأكيد إلى بريدك. اضغطه ثم ادخل من «لدي حساب».");
+  }
+}));
+
+$("sign-out").addEventListener("click", async () => {
+  leaveCall();
+  await sb.auth.signOut();
+  location.reload();
+});
+
+async function enter(user) {
+  me = user;
+  if (!names.has(user.id)) {
+    const { data } = await sb.from("labro_profiles").select("display_name").eq("id", user.id).maybeSingle();
+    if (data) names.set(user.id, data.display_name);
+    else await saveProfile(user.id, (user.user_metadata && user.user_metadata.display_name) || (user.email || "").split("@")[0] || "زائر");
+  }
+  $("me-name").textContent = names.get(user.id);
+  $("who").hidden = false;
+  $("auth").hidden = true;
+  if (callId) openCall(); else openHome();
+}
+
+// ---------- Home ----------
+const timeFmt = new Intl.DateTimeFormat("ar", { dateStyle: "medium", timeStyle: "short" });
+
+async function openHome() {
+  $("home").hidden = false;
+  const { data, error } = await sb.from("labro_calls").select("id, title, created_at")
+    .eq("created_by", me.id).order("created_at", { ascending: false }).limit(50);
+  if (error) { show($("home-error"), arabicError(error)); return; }
+  const list = $("my-calls");
+  list.replaceChildren();
+  $("no-calls").hidden = data.length > 0;
+  for (const c of data) {
+    const li = document.createElement("li");
+    const info = document.createElement("div");
+    const a = document.createElement("a");
+    a.href = localLink(c.id);
+    a.textContent = c.title;
+    const when = document.createElement("div");
+    when.className = "when";
+    when.textContent = timeFmt.format(new Date(c.created_at));
+    info.append(a, when);
+    const copy = document.createElement("button");
+    copy.className = "btn ghost";
+    copy.type = "button";
+    copy.textContent = "انسخ الرابط";
+    copy.addEventListener("click", () => copyText(linkFor(c.id), copy));
+    li.append(info, copy);
+    list.append(li);
+  }
+}
+
+$("new-call-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const title = $("new-call-title").value.trim() || "مكالمة " + names.get(me.id);
+  const { data, error } = await sb.from("labro_calls").insert({ title }).select("id").single();
+  if (error) { show($("home-error"), arabicError(error)); return; }
+  location.href = localLink(data.id);
+});
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = btn.textContent;
+    btn.textContent = "نُسخ ✓";
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  } catch {
+    $("call-link").value = text;
+    $("call-link").select();
+  }
+}
+
+// ---------- Call ----------
+const myKey = crypto.randomUUID();
+const peers = new Map(); // presence key -> { pc, stream, tile, name, pending }
+let localStream = null;
+let channel = null;
+
+async function openCall() {
+  $("main").classList.add("wide");
+  $("call").hidden = false;
+  $("call-link").value = linkFor(callId);
+  const { data, error } = await sb.rpc("labro_join_call", { p_call: callId });
+  if (error) {
+    $("call-title").textContent = "تعذّر فتح المكالمة";
+    show($("call-error"), arabicError(error));
+    $("join-video").disabled = $("join-audio").disabled = true;
+    return;
+  }
+  $("call-title").textContent = data.title;
+  document.title = data.title + " · لابروفون";
+  startChat();
+}
+
+$("copy-link").addEventListener("click", (e) => copyText($("call-link").value, e.currentTarget));
+$("join-video").addEventListener("click", () => join(true));
+$("join-audio").addEventListener("click", () => join(false));
+
+async function join(withVideo) {
+  show($("call-error"), "");
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVideo });
+  } catch (err) {
+    if (!withVideo) { show($("call-error"), arabicError(err)); return; }
+    try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (err2) { show($("call-error"), arabicError(err2)); return; }
+  }
+  $("prejoin").hidden = true;
+  $("in-call").hidden = false;
+  addTile(names.get(me.id) + " (أنت)", localStream, true);
+  $("toggle-cam").disabled = !localStream.getVideoTracks().length;
+
+  channel = sb.channel("labro-call:" + callId, { config: { presence: { key: myKey }, broadcast: { self: false } } });
+  channel.on("presence", { event: "sync" }, syncPeers);
+  channel.on("broadcast", { event: "signal" }, ({ payload }) => { if (payload.to === myKey) handleSignal(payload); });
+  channel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") await channel.track({ name: names.get(me.id) });
+  });
+}
+
+function send(to, msg) {
+  channel.send({ type: "broadcast", event: "signal", payload: { ...msg, to, from: myKey } });
+}
+
+function localTrack(kind) {
+  if (!localStream) return null;
+  return (kind === "audio" ? localStream.getAudioTracks() : localStream.getVideoTracks())[0] || null;
+}
+
+function syncPeers() {
+  const state = channel.presenceState();
+  const keys = Object.keys(state);
+  $("call-count").textContent = keys.length + " في المكالمة";
+  for (const key of keys) {
+    if (key === myKey) continue;
+    const name = (state[key][0] && state[key][0].name) || "زائر";
+    if (!peers.has(key)) {
+      const peer = createPeer(key, name);
+      // Only the lower key sends the offer, so the two sides never collide.
+      if (myKey < key) makeOffer(key, peer);
+    } else {
+      const peer = peers.get(key);
+      peer.name = name;
+      peer.tile.querySelector(".tag").textContent = name;
+      peer.tile.querySelector(".avatar").textContent = name.trim().charAt(0);
+    }
+  }
+  for (const key of [...peers.keys()]) if (!keys.includes(key)) closePeer(key);
+}
+
+function createPeer(key, name) {
+  const pc = new RTCPeerConnection(ICE);
+  const stream = new MediaStream();
+  const peer = { pc, stream, name, pending: [], tile: addTile(name, stream, false) };
+  peers.set(key, peer);
+  pc.onicecandidate = (e) => { if (e.candidate) send(key, { type: "ice", candidate: e.candidate.toJSON() }); };
+  pc.ontrack = (e) => {
+    stream.addTrack(e.track);
+    const video = peer.tile.querySelector("video");
+    video.srcObject = stream;
+    video.play().catch(() => {});
+    const refresh = () => updateAvatar(peer.tile, stream);
+    e.track.onmute = refresh;
+    e.track.onunmute = refresh;
+    refresh();
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "failed") peer.tile.querySelector(".tag").textContent = peer.name + " (تعذّر الاتصال)";
+  };
+  return peer;
+}
+
+async function makeOffer(key, peer) {
+  for (const kind of ["audio", "video"]) {
+    const t = peer.pc.addTransceiver(kind, { direction: "sendrecv" });
+    await t.sender.replaceTrack(localTrack(kind));
+  }
+  await peer.pc.setLocalDescription(await peer.pc.createOffer());
+  send(key, { type: "offer", sdp: peer.pc.localDescription.toJSON() });
+}
+
+async function handleSignal(msg) {
+  const peer = peers.get(msg.from) || createPeer(msg.from, "زائر");
+  const pc = peer.pc;
+  try {
+    if (msg.type === "offer") {
+      await pc.setRemoteDescription(msg.sdp);
+      for (const t of pc.getTransceivers()) {
+        t.direction = "sendrecv";
+        await t.sender.replaceTrack(localTrack(t.receiver.track.kind));
+      }
+      await pc.setLocalDescription(await pc.createAnswer());
+      send(msg.from, { type: "answer", sdp: pc.localDescription.toJSON() });
+      flushIce(peer);
+    } else if (msg.type === "answer") {
+      await pc.setRemoteDescription(msg.sdp);
+      flushIce(peer);
+    } else if (msg.type === "ice") {
+      if (pc.remoteDescription) await pc.addIceCandidate(msg.candidate);
+      else peer.pending.push(msg.candidate);
+    }
+  } catch (err) { console.error(err); }
+}
+
+function flushIce(peer) {
+  for (const c of peer.pending.splice(0)) peer.pc.addIceCandidate(c).catch(console.error);
+}
+
+function closePeer(key) {
+  const peer = peers.get(key);
+  if (!peer) return;
+  peer.pc.close();
+  peer.tile.remove();
+  peers.delete(key);
+}
+
+function addTile(name, stream, isMe) {
+  const tile = document.createElement("div");
+  tile.className = "tile" + (isMe ? " me" : "");
+  const video = document.createElement("video");
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = isMe;
+  video.srcObject = stream;
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = (name || "؟").trim().charAt(0);
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  tag.textContent = name;
+  tile.append(video, avatar, tag);
+  $("stage").append(tile);
+  updateAvatar(tile, stream);
+  return tile;
+}
+
+function updateAvatar(tile, stream) {
+  const v = stream.getVideoTracks()[0];
+  tile.querySelector(".avatar").hidden = !!(v && v.enabled && !v.muted);
+}
+
+$("toggle-mic").addEventListener("click", (e) => {
+  const t = localTrack("audio");
+  if (!t) return;
+  t.enabled = !t.enabled;
+  e.currentTarget.textContent = t.enabled ? "كتم الصوت" : "تشغيل الصوت";
+  e.currentTarget.classList.toggle("off", !t.enabled);
+});
+
+$("toggle-cam").addEventListener("click", (e) => {
+  const t = localTrack("video");
+  if (!t) return;
+  t.enabled = !t.enabled;
+  e.currentTarget.textContent = t.enabled ? "إيقاف الكاميرا" : "تشغيل الكاميرا";
+  e.currentTarget.classList.toggle("off", !t.enabled);
+  updateAvatar($("stage").querySelector(".tile.me"), localStream);
+});
+
+function leaveCall() {
+  for (const key of [...peers.keys()]) closePeer(key);
+  if (channel) { sb.removeChannel(channel); channel = null; }
+  if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+}
+
+$("leave").addEventListener("click", () => {
+  leaveCall();
+  $("stage").replaceChildren();
+  $("in-call").hidden = true;
+  $("prejoin").hidden = false;
+  $("call-count").textContent = "";
+});
+window.addEventListener("pagehide", leaveCall);
+
+// ---------- Chat ----------
+async function loadChat() {
+  const { data, error } = await sb.from("labro_call_messages")
+    .select("id, user_id, body, created_at, labro_profiles(display_name)")
+    .eq("call_id", callId).order("created_at", { ascending: true }).limit(200);
+  if (error) return;
+  const list = $("chat");
+  list.replaceChildren();
+  for (const m of data) {
+    if (m.labro_profiles) names.set(m.user_id, m.labro_profiles.display_name);
+    const li = document.createElement("li");
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const who = document.createElement("strong");
+    who.textContent = names.get(m.user_id) || "زائر";
+    meta.append(who, document.createTextNode(timeFmt.format(new Date(m.created_at))));
+    const p = document.createElement("p");
+    p.textContent = m.body;
+    li.append(meta, p);
+    list.append(li);
+  }
+  list.scrollTop = list.scrollHeight;
+}
+
+function startChat() {
+  loadChat();
+  sb.channel("labro-chat:" + callId)
+    .on("postgres_changes", { event: "*", schema: "public", table: "labro_call_messages", filter: "call_id=eq." + callId }, loadChat)
+    .subscribe();
+}
+
+$("chat-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = $("chat-body").value.trim();
+  if (!body) return;
+  $("chat-body").value = "";
+  const { error } = await sb.from("labro_call_messages").insert({ call_id: callId, body });
+  if (error) { $("chat-body").value = body; return; }
+  loadChat();
+});
+
+// ---------- Start ----------
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) { await enter(data.session.user); return; }
+  if (callId) $("auth-title").textContent = "اكتب اسمك لتنضم إلى المكالمة";
+  $("auth").hidden = false;
+})();
+</script>
+</body>
+</html>
