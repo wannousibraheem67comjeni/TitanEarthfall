@@ -8,6 +8,7 @@ import './ui/styles.css';
 import { Game } from './game/Game';
 import { newState, Store } from './game/state';
 import { showIntro } from './ui/overlays';
+import { showcase } from './showcase';
 
 const root = document.getElementById('app')!;
 const loading = document.getElementById('loading')!;
@@ -23,6 +24,11 @@ async function boot(): Promise<void> {
   bar.style.width = '60%';
   message.textContent = 'نفتح البقالة…';
   await new Promise((r) => setTimeout(r, 30));
+  if (new URLSearchParams(location.search).has('people')) {
+    loading.remove();
+    showcase(root);
+    return;
+  }
   const game = new Game(root);
   (window as unknown as { shop: Game }).shop = game;
   bar.style.width = '100%';

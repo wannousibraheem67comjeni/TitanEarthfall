@@ -1,8 +1,9 @@
 /** Cards over the shop: the start screen, how to play, the price list, celebrations. */
-import { fmt, LADDER, STAGES } from '../game/economy';
+import { fmt, STAGES } from '../game/economy';
 import type { Gender } from '../game/state';
 import { h } from './dom';
-import { priceList } from './invoice';
+import type { DaySummary } from '../game/state';
+import { priceList } from './receipt';
 
 export class Card {
   readonly root = h('div.overlay');
@@ -66,7 +67,7 @@ export function showIntro(parent: HTMLElement, saved: { name: string; gender: Ge
       'form.panel',
       h('div.awning'),
       h('h1', 'بقالة شرق الإمارات'),
-      h('p.tag', 'عندك بقالة صغيرة مرة، وما يجيها إلا كم زبون. الزبون يحط أغراضه على طاولتك، وأنت تقبل الفاتورة أو ترفضها. واجمع، واضغط الزر الوردي عشان تدّخر وتطوّر بقالتك… لين تصير أغنى شخص على الإطلاق!'),
+      h('p.tag', 'أنت ورا مكتبك في بقالة صغيرة مرة، ما يجيها إلا كم زبون باليوم. الزبون يدخل، ياخذ أغراضه، يحطها على مكتبك ويقول لك فاتورته: «تقبل فاتورتي ولا ترفضها؟». تقرر، وتجمع، وتضغط الزر الوردي عشان تدّخر وتطوّر بقالتك… لين تصير أغنى شخص على الإطلاق!'),
       saved ? h('button.btn.warm', { type: 'button', onclick: () => done(true) }, `كمّل يا ${saved.name} (${STAGES[saved.stage].name}، ثروتك ${fmt(Math.floor(saved.worth))})`) : null,
       h('label', { for: 'player-name' }, saved ? 'أو افتح بقالة جديدة باسمك:' : 'شو اسمك يا صاحب البقالة؟'),
       name,
@@ -89,15 +90,35 @@ export function showHowTo(parent: HTMLElement, onClose: () => void): void {
   c.body.append(
     h(
       'div.howto',
-      h('div.step', h('span', '🧺'), h('div', 'الزبون يدخل، ياخذ أغراضه من الرفوف، ويحطها على طاولتك. الفاتورة تطلع لك على طول.')),
-      h('div.step', h('span', '✅'), h('div', 'اقبل الفاتورة السليمة. وانتبه للحيل: ورقة مزورة (لونها باهت ومكتوب «درهن»)، زبون يقول السعر أرخص من القائمة، كوبون منتهي، أو خصم يخليك تخسر.')),
-      h('div.step', h('span', '💗'), h('div', 'الفلوس تنجمع بالدرج. اضغط الزر الوردي «ادخار» عشان تنقلها للادخار، والادخار يكبر كل دقيقة. لما يكفي، نفس الزر يصير «طوّر البقالة».')),
-      h('div.step', h('span', '👑'), h('div', `ثماني مراحل، من كشك صغير لين مجموعة قابضة، والهدف: ${LADDER[LADDER.length - 1].title[0]}`)),
-      h('div.step', h('span', '⌨️'), h('div', 'بالكيبورد: Enter للقبول، و R للرفض، و Space للادخار.')),
+      h('div.step', h('span', '🕖'), h('div', 'البقالة تفتح الساعة 7 الصبح وتسكّر 11 بالليل. الصبح والعصر فيهم زحمة، والظهر هادي. انتظر، الزباين يجون على راحتهم.')),
+      h('div.step', h('span', '🧺'), h('div', 'الزبون يدخل، ياخذ أغراضه من الرفوف، يحطها على مكتبك، ويقول لك شو اشترى وكيف بيدفع. الفاتورة تنطبع قدامك وهو يتكلم.')),
+      h('div.step', h('span', '✅'), h('div', 'لما يخلّص كلامه تطلع لك أزرار القبول والرفض تحت. اقبل الفاتورة السليمة. وانتبه: ورقة مزورة (باهتة، بلا خيط فضي، ومكتوب «درهن»)، سعر أرخص من الرف، كوبون منتهي، أو خصم يخسّرك.')),
+      h('div.step', h('span', '💗'), h('div', 'الفلوس تنجمع بالدرج. الزر الوردي «ادخار» ينقلها للادخار، والادخار يربح كل ليلة. لما يكفي، نفس الزر يصير «طوّر البقالة».')),
+      h('div.step', h('span', '⌨️'), h('div', 'بالكيبورد: Enter للقبول، R للرفض، Space للادخار. واسحب الشاشة عشان تتلفت حولك.')),
       h('button.btn.start', { type: 'button', onclick: () => c.close() }, 'يلا نفتح البقالة!'),
     ),
   );
   c.onClose = onClose;
+}
+
+/** Closing time: how the day went, then the next morning. */
+export function showDaySummary(parent: HTMLElement, d: DaySummary, onNext: () => void): void {
+  const c = new Card(parent, `🌙 سكّرنا — اليوم ${d.day}`, { closable: false });
+  const row = (label: string, value: string, cls = '') => h(`div.sum-row${cls ? '.' + cls : ''}`, h('span', label), h('b', value));
+  c.body.append(
+    h(
+      'div.summary',
+      row('الزباين', String(d.customers)),
+      row('قبلت / رفضت', `${d.accepted} / ${d.refused}`),
+      row('كشفت حيل', String(d.caught)),
+      row('المبيعات', fmt(Math.round(d.sales))),
+      row('ربح اليوم', fmt(Math.round(d.profit * 10) / 10), 'good'),
+      d.passive > 0 ? row('دخل الفروع والعقود', fmt(Math.round(d.passive)), 'good') : null,
+      d.interest > 0 ? row('أرباح الادخار الليلة', fmt(Math.round(d.interest * 10) / 10), 'good') : null,
+      h('button.btn.start', { type: 'button', onclick: () => c.close() }, '🌅 صباح جديد'),
+    ),
+  );
+  c.onClose = onNext;
 }
 
 export function showPrices(parent: HTMLElement, stage: number): Card {
@@ -115,7 +136,7 @@ export function showUpgrade(parent: HTMLElement, stage: number, onClose: () => v
       h('div.big', st.name),
       h('p', `صارت بقالتك «${st.sign}».`),
       h('p.muted', st.adds),
-      st.passive ? h('p.good', `دخل إضافي: ${fmt(st.passive)} كل دقيقة 💸`) : null,
+      st.passive ? h('p.good', `دخل إضافي: ${fmt(st.passive)} كل ساعة 💸`) : null,
       h('button.btn.start', { type: 'button', onclick: () => c.close() }, 'يلا!'),
     ),
   );

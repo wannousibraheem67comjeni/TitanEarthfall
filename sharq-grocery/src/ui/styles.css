@@ -1,15 +1,17 @@
 /*
  * بقالة شرق الإمارات — interface.
- * The shop fills the screen; a dark plum bar on top holds the stage, the wealth and
- * the till; the big pink savings button sits at the bottom; bills come in as paper
- * receipts on the side (a bottom sheet on phones). Right-to-left throughout.
+ * The 3D shop fills the screen, seen from behind the desk. Thin glass chips along the
+ * top hold the stage, the wealth, the clock and the till; subtitles show what is being
+ * said; the receipt lies on the desk at the side; the pink savings button, or the
+ * accept and refuse buttons, sit at the bottom. Right-to-left throughout.
  */
 :root {
   --pink: #e8508f;
   --pink-2: #ff7fb5;
   --pink-dark: #b8336c;
-  --plum: #2a1a2e;
-  --plum-2: rgba(42, 26, 46, 0.84);
+  --plum: #1d1420;
+  --glass: rgba(20, 14, 22, 0.7);
+  --glass-2: rgba(20, 14, 22, 0.82);
   --cream: #fffaf3;
   --cream-2: #f6ead8;
   --ink: #2a1a2e;
@@ -53,6 +55,7 @@ canvas.view {
   height: 100%;
   display: block;
   touch-action: none;
+  cursor: grab;
 }
 
 button {
@@ -78,7 +81,7 @@ button {
   pointer-events: auto;
 }
 
-/* ------------------------------------------------------------------ HUD */
+/* ------------------------------------------------------------------ top bar */
 
 .hud {
   position: absolute;
@@ -97,64 +100,60 @@ button {
   right: 10px;
   display: flex;
   gap: 8px;
-  justify-content: space-between;
   align-items: stretch;
+  pointer-events: none !important;
+}
+
+.topbar > * {
+  pointer-events: auto;
 }
 
 .chip {
-  background: var(--plum-2);
+  background: var(--glass);
   color: #fff;
   border-radius: 14px;
-  padding: 8px 12px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-}
-
-.chip.stage {
+  padding: 7px 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
-  gap: 8px;
   align-items: center;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 13.5px;
 }
 
-.chip.stage .shopico {
-  font-size: 26px;
+.chip .ico {
+  font-size: 22px;
 }
 
-.chip.stage div {
+.chip > div {
   display: grid;
-}
-
-.stars {
-  color: var(--gold);
-  letter-spacing: 1px;
-  font-size: 15px;
+  line-height: 1.35;
 }
 
 .chip.worth {
+  margin: 0 auto;
   display: grid;
   justify-items: center;
   gap: 2px;
-  min-width: 220px;
+  min-width: 230px;
   text-align: center;
 }
 
 .chip.worth b {
-  font: 400 22px var(--display);
+  font: 400 21px var(--display);
   color: var(--gold);
 }
 
 .chip.worth .title {
-  font-size: 13.5px;
+  font-size: 12.5px;
   color: #ffc4dd;
 }
 
 .ladder {
   width: 100%;
-  height: 5px;
+  height: 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   overflow: hidden;
 }
 
@@ -164,57 +163,76 @@ button {
   background: linear-gradient(90deg, var(--gold), var(--pink-2));
 }
 
+.chip.clock b {
+  font: 600 17px var(--body);
+  direction: rtl;
+}
+
+.chip.clock span {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 .chip.drawer {
   display: grid;
   justify-items: center;
   align-content: center;
-  font-size: 13px;
-  min-width: 120px;
+  gap: 0;
+  min-width: 110px;
+  font-size: 12px;
 }
 
 .chip.drawer b {
-  font: 400 24px var(--display);
+  font: 400 21px var(--display);
   color: #9ff0c4;
+}
+
+.stars {
+  color: var(--gold);
+  letter-spacing: 1px;
+  font-size: 14px;
 }
 
 .tools {
   position: absolute;
-  top: calc(84px + var(--safe-t));
+  top: calc(76px + var(--safe-t));
   left: 10px;
   display: grid;
   gap: 8px;
 }
 
 .round {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  border: 0;
-  background: var(--plum-2);
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass);
   color: #fff;
-  font-size: 20px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  font-size: 19px;
 }
+
+/* ------------------------------------------------------------------ toasts, pops */
 
 .toasts {
   position: absolute;
-  top: calc(84px + var(--safe-t));
+  top: calc(96px + var(--safe-t));
   left: 50%;
   transform: translateX(-50%);
-  width: min(520px, 76vw);
+  width: min(520px, 70vw);
   display: grid;
   gap: 6px;
   pointer-events: none !important;
 }
 
 .toast {
-  background: var(--plum-2);
+  background: var(--glass-2);
   color: #fff;
   border-radius: 12px;
   padding: 8px 14px;
   font-size: 14.5px;
+  line-height: 1.6;
   text-align: center;
-  border-inline-start: 5px solid rgba(255, 255, 255, 0.3);
+  border-inline-start: 4px solid rgba(255, 255, 255, 0.3);
   animation: toast-in 0.25s ease-out;
   transition: opacity 0.4s, transform 0.4s;
 }
@@ -229,7 +247,7 @@ button {
 
 .toast.big {
   font-size: 16px;
-  background: rgba(232, 80, 143, 0.94);
+  background: rgba(232, 80, 143, 0.9);
   border-color: #fff;
 }
 
@@ -245,41 +263,16 @@ button {
   }
 }
 
-.say {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  max-width: min(280px, 70vw);
-  background: #fff;
-  color: var(--ink);
-  border-radius: 16px;
-  padding: 8px 14px;
-  font-size: 15px;
-  line-height: 1.5;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
-  pointer-events: none !important;
-  text-align: center;
-}
-
-.say::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  margin-left: -8px;
-  border: 8px solid transparent;
-  border-top-color: #fff;
-  border-bottom: 0;
-}
-
 .pop {
   position: absolute;
   transform: translate(-50%, 0);
-  font: 400 26px var(--display);
-  color: #23b26b;
-  text-shadow: 0 2px 0 #fff, 0 3px 8px rgba(0, 0, 0, 0.35);
+  font: 400 30px var(--display);
+  color: #23c47a;
+  text-shadow: 0 2px 0 #fff, 0 3px 10px rgba(0, 0, 0, 0.45);
   pointer-events: none !important;
-  animation: rise 1.4s ease-out forwards;
+  animation: rise 1.5s ease-out forwards;
   white-space: nowrap;
+  z-index: 8;
 }
 
 .pop.neg {
@@ -288,55 +281,96 @@ button {
 
 @keyframes rise {
   to {
-    transform: translate(-50%, -70px);
+    transform: translate(-50%, -80px);
     opacity: 0;
   }
 }
 
+/* ------------------------------------------------------------------ subtitles */
+
+.subtitle {
+  position: absolute;
+  left: 50%;
+  bottom: calc(118px + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 24px));
+  padding: 10px 16px 12px;
+  border-radius: 14px;
+  background: rgba(8, 6, 10, 0.74);
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+  animation: toast-in 0.2s ease-out;
+}
+
+.subtitle b {
+  display: block;
+  font: 600 13px var(--body);
+  color: var(--pink-2);
+  margin-bottom: 2px;
+}
+
+.subtitle.me b {
+  color: #9ff0c4;
+}
+
+.subtitle p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.subtitle .rest {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* ------------------------------------------------------------------ dock: pink button / decision */
+
 .dock {
   position: absolute;
-  bottom: calc(16px + var(--safe-b));
   left: 50%;
+  bottom: calc(12px + var(--safe-b));
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
   gap: 6px;
+  width: min(560px, calc(100vw - 24px));
 }
 
-/* The big pink savings button. */
 .pink {
+  position: relative;
   min-width: 270px;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 30px 12px;
+  background: linear-gradient(180deg, #ff8cc0, var(--pink));
+  color: #fff;
   display: grid;
   justify-items: center;
-  gap: 4px;
-  padding: 12px 30px 14px;
-  border: 3px solid rgba(255, 255, 255, 0.85);
-  border-radius: 40px;
-  background: linear-gradient(180deg, var(--pink-2), var(--pink));
-  color: #fff;
-  box-shadow: 0 6px 0 var(--pink-dark), 0 12px 30px rgba(232, 80, 143, 0.45);
-  transition: transform 0.08s;
+  gap: 2px;
+  box-shadow: 0 6px 0 var(--pink-dark), 0 14px 30px rgba(232, 80, 143, 0.45);
+  border: 3px solid #fff;
 }
 
 .pink:active {
   transform: translateY(3px);
-  box-shadow: 0 3px 0 var(--pink-dark), 0 8px 22px rgba(232, 80, 143, 0.45);
+  box-shadow: 0 3px 0 var(--pink-dark), 0 8px 18px rgba(232, 80, 143, 0.45);
 }
 
 .pink .big {
-  font: 400 30px/1.1 var(--display);
+  font: 400 27px var(--display);
 }
 
 .pink .sub {
-  font-size: 13.5px;
+  font-size: 13px;
   opacity: 0.95;
 }
 
 .pink .bar {
-  width: 100%;
-  height: 8px;
+  width: 190px;
+  height: 7px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.35);
   overflow: hidden;
 }
 
@@ -344,18 +378,16 @@ button {
   display: block;
   height: 100%;
   background: #fff;
-  border-radius: 4px;
   transition: width 0.4s;
 }
 
 .pink.ready {
-  background: linear-gradient(180deg, #ffd166, var(--pink));
-  animation: glow 1.2s ease-in-out infinite;
+  animation: glow 1.4s ease-in-out infinite;
 }
 
 @keyframes glow {
   50% {
-    box-shadow: 0 6px 0 var(--pink-dark), 0 0 0 14px rgba(255, 209, 102, 0.25), 0 12px 30px rgba(232, 80, 143, 0.55);
+    box-shadow: 0 6px 0 var(--pink-dark), 0 0 0 10px rgba(255, 127, 181, 0.35), 0 14px 30px rgba(232, 80, 143, 0.6);
   }
 }
 
@@ -365,289 +397,250 @@ button {
 
 @keyframes shake {
   25% {
-    translate: -8px 0;
+    transform: translateX(-6px);
   }
   75% {
-    translate: 8px 0;
+    transform: translateX(6px);
   }
 }
 
-.jar-note {
-  background: var(--plum-2);
-  color: #ffd6e8;
-  font-size: 12.5px;
-  padding: 4px 12px;
-  border-radius: 10px;
-}
-
-/* ------------------------------------------------------------------ the bill */
-
-.bill {
-  position: absolute;
-  top: calc(84px + var(--safe-t));
-  right: 12px;
-  width: min(400px, 94vw);
-  max-height: calc(100dvh - 230px);
-  overflow: auto;
-  background: var(--cream);
-  border-radius: 18px;
-  padding: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+.decide {
+  width: 100%;
   display: grid;
-  gap: 10px;
-  animation: bill-in 0.22s ease-out;
-  z-index: 5;
+  gap: 6px;
+  animation: rise-in 0.22s ease-out;
 }
 
-@keyframes bill-in {
+@keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateX(30px);
+    transform: translateY(20px);
   }
 }
 
-.bill-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 17px;
-}
-
-.bill-head .face {
-  font-size: 28px;
-}
-
-.bill-head .muted {
-  margin-inline-start: auto;
-  font-size: 12.5px;
-}
-
-.bill-say {
-  background: #fff;
-  border: 2px solid #f1d7e3;
-  border-radius: 14px;
-  padding: 8px 12px;
-  font-size: 16px;
-  line-height: 1.55;
-}
-
-.receipt {
-  background: #fff;
-  border-radius: 6px;
-  padding: 10px 12px;
-  border-top: 6px solid var(--pink);
-  box-shadow: inset 0 0 0 1px #eadfd2;
+.decide .row {
   display: grid;
-  gap: 8px;
-  font-size: 14.5px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-.r-title {
-  text-align: center;
-  font: 400 18px var(--display);
-  color: var(--pink-dark);
-  border-bottom: 1px dashed #d9cbbd;
-  padding-bottom: 6px;
-}
-
-.r-title small {
-  font: 400 12px var(--body);
-  color: var(--ink-2);
-}
-
-.receipt table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.receipt td {
-  padding: 4px 2px;
-  border-bottom: 1px dotted #e6dccf;
-}
-
-.receipt td.n {
-  text-align: left;
-  white-space: nowrap;
-  unicode-bidi: plaintext;
-}
-
-.receipt .ico {
-  font-size: 17px;
-}
-
-.receipt tr.claim td {
-  color: var(--red);
-  background: #fff0ee;
-  font-weight: 600;
-}
-
-.r-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.r-row.total {
-  font: 400 20px var(--display);
-}
-
-.warn {
-  background: #fff0ee;
-  color: #8a2a20;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13.5px;
-}
-
-.coupon {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  border: 2px dashed var(--pink);
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #fff5fa;
-}
-
-.r-pay {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.r-pay b.less {
-  font: 400 20px var(--display);
-  color: var(--red);
-}
-
-.receipt small.said {
-  display: inline-block;
-  margin-inline-start: 6px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: var(--red);
+.decide button {
+  border: 3px solid #fff;
+  border-radius: 18px;
+  padding: 14px 10px;
+  font: 400 27px var(--display);
   color: #fff;
-  font-size: 11.5px;
 }
 
-.r-pay small {
-  color: var(--ink-2);
+.decide .accept {
+  background: linear-gradient(180deg, #2fb36d, var(--green));
+  box-shadow: 0 6px 0 #126a3f, 0 12px 26px rgba(0, 0, 0, 0.3);
+  order: -1;
 }
 
-.banknote {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 96px;
-  height: 46px;
-  border-radius: 6px;
-  color: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
+.decide .reject {
+  background: linear-gradient(180deg, #e2574c, var(--red));
+  box-shadow: 0 6px 0 #8f241c, 0 12px 26px rgba(0, 0, 0, 0.3);
 }
 
-.banknote b {
-  font: 400 22px/1 var(--display);
+.decide button:only-child,
+.decide .row:has(.reject[hidden]) .accept {
+  grid-column: span 2;
 }
 
-.banknote small {
-  font-size: 11px;
-  opacity: 0.9;
-}
-
-.banknote .thread {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 20px;
-  width: 6px;
-  background: linear-gradient(180deg, #e8e8e8, #9a9a9a, #f4f4f4, #a8a8a8);
-}
-
-.banknote.fake {
-  filter: saturate(0.35) brightness(1.15);
-  transform: rotate(-3deg);
-  border-style: dashed;
-}
-
-.r-profit {
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: 10px;
-}
-
-.r-profit.good {
-  background: #e3f6ec;
-  color: #15603c;
-}
-
-.r-profit.bad {
-  background: #fde8e6;
-  color: #8a2a20;
+.decide button:active {
+  transform: translateY(3px);
 }
 
 .patience {
-  height: 6px;
+  height: 5px;
   border-radius: 3px;
-  background: #eadfd2;
+  background: rgba(255, 255, 255, 0.25);
   overflow: hidden;
 }
 
 .patience i {
   display: block;
   height: 100%;
-  background: var(--pink);
+  background: #fff;
   transition: width 0.2s linear;
 }
 
 .patience i.low {
-  background: var(--red);
+  background: #ff7a6b;
 }
 
-.bill-actions {
+/* ------------------------------------------------------------------ the receipt on the desk */
+
+.receipt {
+  position: absolute;
+  left: 64px;
+  top: calc(80px + var(--safe-t));
+  width: 280px;
+  max-height: calc(100dvh - 310px - var(--safe-t) - var(--safe-b));
+  overflow: auto;
+  scrollbar-width: none;
+  padding: 14px 14px 18px;
+  background: linear-gradient(180deg, #fffefa, #f7f4ec);
+  color: #1d1d1d;
+  font: 500 12.5px var(--body);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  transform: rotate(-1.2deg);
+  transform-origin: top left;
+  animation: print-in 0.5s ease-out;
+  z-index: 4;
+  -webkit-mask: linear-gradient(#000, #000) top / 100% calc(100% - 8px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 12px 8px repeat-x;
+  mask: linear-gradient(#000, #000) top / 100% calc(100% - 8px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 12px 8px repeat-x;
+}
+
+.receipt::-webkit-scrollbar {
+  display: none;
+}
+
+.receipt.out {
+  animation: tear-off 0.45s ease-in forwards;
+}
+
+@keyframes print-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes tear-off {
+  to {
+    transform: rotate(-8deg) translate(-40px, 60px);
+    opacity: 0;
+  }
+}
+
+.r-head {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  /* The bill scrolls on short screens; the two buttons always stay in reach. */
-  position: sticky;
-  bottom: -12px;
-  margin: 0 -12px -12px;
-  padding: 8px 12px 12px;
-  background: var(--cream);
+  gap: 2px;
+  text-align: center;
 }
 
-.bill-actions button {
-  border: 0;
-  border-radius: 14px;
-  padding: 14px 10px;
-  font: 400 22px var(--display);
-  color: #fff;
+.r-head b {
+  font: 400 19px var(--display);
 }
 
-.bill-actions .accept {
-  background: var(--green);
-  box-shadow: 0 4px 0 #126a3f;
+.r-head small {
+  font-size: 10.5px;
+  color: #555;
 }
 
-.bill-actions .reject {
-  background: var(--red);
-  box-shadow: 0 4px 0 #8f241c;
+.r-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #444;
 }
 
-.bill-actions button:only-child {
-  grid-column: span 2;
+.r-sep {
+  border-top: 2px dashed #9a9a9a;
+  margin: 8px 0;
 }
 
-button.link {
-  border: 0;
-  background: none;
-  color: var(--pink-dark);
-  font-size: 14px;
-  text-decoration: underline;
-  justify-self: center;
-  white-space: nowrap;
+.r-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  padding: 3px 0;
+  align-items: baseline;
+}
+
+.r-line .q {
+  direction: ltr;
+  color: #555;
+  font-size: 12px;
+}
+
+.r-line .v {
+  direction: ltr;
+  font-weight: 600;
+  min-width: 52px;
+  text-align: left;
+}
+
+.r-line.typing {
+  animation: type-in 0.35s steps(6);
+}
+
+@keyframes type-in {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+.r-line.claim .v {
+  text-decoration: underline wavy #c8352b;
+}
+
+.r-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.r-row b,
+.r-row span:last-child {
+  direction: ltr;
+}
+
+.r-row.total {
+  font: 400 20px var(--display);
+}
+
+.r-row.small {
+  font-size: 11.5px;
+  color: #555;
+}
+
+.r-row.warn {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.coupon {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 2px dashed #e0a526;
+  border-radius: 8px;
+  background: #fff8e6;
+  font-size: 12.5px;
+}
+
+.r-pay {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.r-pay .how {
+  font-weight: 600;
+}
+
+.r-pay canvas.note {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  transform: rotate(1.5deg);
+}
+
+.r-pay b.less,
+.r-row b.less {
+  color: #c8352b;
+}
+
+.r-tear {
+  height: 2px;
 }
 
 /* ------------------------------------------------------------------ cards */
@@ -959,86 +952,180 @@ button.link {
   transition: width 0.3s;
 }
 
+/* ------------------------------------------------------------------ day summary */
+
+.summary {
+  display: grid;
+  gap: 6px;
+}
+
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #eadfd2;
+}
+
+.sum-row b {
+  font: 400 20px var(--display);
+}
+
+.sum-row.good b {
+  color: var(--green);
+}
+
+.summary .btn.start {
+  margin-top: 8px;
+}
+
 /* ------------------------------------------------------------------ phones */
 
 @media (max-width: 760px) {
   .topbar {
     flex-wrap: wrap;
-  }
-  .chip.worth {
-    order: 3;
-    flex: 1 1 100%;
-    min-width: 0;
-    padding: 6px 10px;
+    gap: 5px;
+    top: calc(6px + var(--safe-t));
+    left: 6px;
+    right: 6px;
   }
   .chip {
-    padding: 6px 10px;
-    border-radius: 12px;
+    padding: 4px 8px;
+    border-radius: 11px;
+    font-size: 11.5px;
+    gap: 6px;
+  }
+  .chip .ico {
+    font-size: 15px;
+  }
+  .chip > div {
+    line-height: 1.25;
   }
   .chip.stage,
+  .chip.clock,
   .chip.drawer {
     flex: 1;
     min-width: 0;
+    white-space: nowrap;
   }
-  .chip.stage {
-    font-size: 12.5px;
+  .chip.drawer {
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
   }
-  .chip.stage .shopico {
-    font-size: 20px;
+  .chip.drawer b,
+  .chip.worth b {
+    font-size: 16px;
   }
-  .stars {
-    font-size: 12px;
+  .chip.clock b {
+    font-size: 14px;
   }
-  .chip.drawer b {
-    font-size: 20px;
+  .chip.clock span {
+    font-size: 10.5px;
   }
   .chip.worth {
+    order: 4;
+    flex: 1 1 100%;
+    min-width: 0;
     grid-template-columns: auto auto;
     justify-content: center;
     align-items: baseline;
     column-gap: 10px;
+    padding: 3px 10px 4px;
+  }
+  .chip.worth .row1 {
+    white-space: nowrap;
   }
   .chip.worth .ladder {
     grid-column: 1 / -1;
   }
-  .chip.worth b {
-    font-size: 18px;
-  }
   .chip.worth .title {
-    font-size: 12px;
+    font-size: 11px;
+  }
+  .stars {
+    font-size: 10px;
   }
   .tools {
-    top: calc(134px + var(--safe-t));
+    top: calc(84px + var(--safe-t));
+    left: 6px;
   }
   .round {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
   }
   .toasts {
-    top: calc(134px + var(--safe-t));
-    left: 60px;
-    right: 10px;
+    top: calc(84px + var(--safe-t));
+    left: 48px;
+    right: 6px;
     width: auto;
     transform: none;
   }
+  .toast {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+  .subtitle {
+    bottom: calc(96px + var(--safe-b));
+    padding: 6px 10px 8px;
+  }
+  .subtitle p {
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
   .pink {
-    min-width: 240px;
-    padding: 10px 22px 12px;
+    min-width: 220px;
+    padding: 7px 20px 9px;
   }
   .pink .big {
-    font-size: 26px;
+    font-size: 23px;
   }
-  .bill {
+  .decide button {
+    font-size: 22px;
+    padding: 11px 8px;
+  }
+  .receipt {
+    left: 6px;
     top: auto;
-    right: 8px;
-    left: 8px;
-    bottom: calc(8px + var(--safe-b));
-    width: auto;
-    max-height: 60dvh;
+    bottom: calc(205px + var(--safe-b));
+    width: min(46vw, 200px);
+    max-height: 34dvh;
+    padding: 8px 9px 12px;
+    font-size: 10.5px;
+    transform: rotate(-1deg);
+    transform-origin: bottom left;
   }
-  .ui:has(.bill:not([hidden])) .dock {
+  .r-head b {
+    font-size: 14px;
+  }
+  .r-head small,
+  .r-meta {
+    font-size: 9px;
+  }
+  .r-line {
+    gap: 4px;
+    padding: 2px 0;
+  }
+  .r-line .q {
+    font-size: 9.5px;
+  }
+  .r-line .v {
+    min-width: 34px;
+  }
+  .r-row.total {
+    font-size: 15px;
+  }
+  .r-row.small {
+    font-size: 9.5px;
+  }
+  .r-head small,
+  .r-meta:last-child {
     display: none;
+  }
+  .r-pay canvas.note {
+    width: 78%;
   }
 }
 

@@ -4,7 +4,8 @@
  * these methods, which emit events the interface listens to.
  */
 import { Emitter } from '../core/events';
-import { LADDER, rank, SAVINGS_RATE, STAGES } from './economy';
+import { CLOSE, MINUTES_PER_SECOND, OPEN } from './clock';
+import { DAILY_INTEREST, LADDER, rank, STAGES } from './economy';
 
 import type { Look } from '../world/look';
 
@@ -39,6 +40,28 @@ export interface SaveState {
   time: number;
   stats: { customers: number; accepted: number; refused: number; caught: number; fooled: number; profit: number; interest: number; passive: number; repaid: number; lostDebts: number };
   bestRank: number;
+  /** Day number (1 = the first day) and the time of day in shop minutes. */
+  day: number;
+  minute: number;
+  today: DayStats;
+}
+
+/** One working day, for the closing-time summary. */
+export interface DayStats {
+  customers: number;
+  accepted: number;
+  refused: number;
+  caught: number;
+  sales: number;
+  profit: number;
+  passive: number;
+}
+
+const freshDay = (): DayStats => ({ customers: 0, accepted: 0, refused: 0, caught: 0, sales: 0, profit: 0, passive: 0 });
+
+export interface DaySummary extends DayStats {
+  day: number;
+  interest: number;
 }
 
 export interface StoreEvents {
@@ -65,6 +88,9 @@ export function newState(name: string, gender: Gender): SaveState {
     time: 0,
     stats: { customers: 0, accepted: 0, refused: 0, caught: 0, fooled: 0, profit: 0, interest: 0, passive: 0, repaid: 0, lostDebts: 0 },
     bestRank: 0,
+    day: 1,
+    minute: OPEN,
+    today: freshDay(),
   };
 }
 
@@ -121,21 +147,42 @@ export class Store extends Emitter<StoreEvents> {
     return true;
   }
 
-  /** Time passes: savings earn interest, branches and contracts bring income. Returns both. */
-  tick(seconds: number): { interest: number; passive: number } {
+  get open(): boolean {
+    return this.s.minute >= OPEN && this.s.minute < CLOSE;
+  }
+
+  /** Shop time passes; branches and contracts bring their income by the hour. Returns that income. */
+  advance(seconds: number): number {
     this.s.time += seconds;
-    const interest = this.s.savings * SAVINGS_RATE * (seconds / 60);
-    const passive = STAGES[this.s.stage].passive * (seconds / 60);
-    if (interest > 0) {
-      this.s.savings += interest;
-      this.s.stats.interest += interest;
-    }
+    const minutes = seconds * MINUTES_PER_SECOND;
+    this.s.minute = Math.min(CLOSE, this.s.minute + minutes);
+    const passive = (STAGES[this.s.stage].passive / 60) * minutes;
     if (passive > 0) {
       this.s.drawer += passive;
       this.s.stats.passive += passive;
+      this.s.today.passive += passive;
+      this.checkRank();
     }
-    if (interest > 0 || passive > 0) this.checkRank();
-    return { interest, passive };
+    return passive;
+  }
+
+  /** Closing time: the savings earn the day's interest. Returns the day's summary. */
+  closeDay(): DaySummary {
+    const interest = Math.round(this.s.savings * DAILY_INTEREST * 100) / 100;
+    if (interest > 0) {
+      this.s.savings += interest;
+      this.s.stats.interest += interest;
+      this.emit('money', { drawer: this.s.drawer, savings: this.s.savings, delta: interest, where: 'savings' });
+      this.checkRank();
+    }
+    return { ...this.s.today, day: this.s.day, interest };
+  }
+
+  /** The next morning. */
+  newDay(): void {
+    this.s.day++;
+    this.s.minute = OPEN;
+    this.s.today = freshDay();
   }
 
   stars(delta: number): void {
@@ -176,7 +223,8 @@ export class Store extends Emitter<StoreEvents> {
       if (!s || typeof s.name !== 'string' || typeof s.stage !== 'number') return null;
       const base = newState(s.name, s.gender === 'f' ? 'f' : 'm');
       const debts = (Array.isArray(s.debts) ? s.debts : []).map((d) => ({ ...d, gender: d.gender === 'f' ? 'f' : 'm', look: d.look && typeof d.look === 'object' ? d.look : undefined }) as Debt);
-      return { ...base, ...s, debts, stats: { ...base.stats, ...(s.stats ?? {}) }, stage: Math.max(0, Math.min(STAGES.length - 1, s.stage)) } as SaveState;
+      const minute = typeof s.minute === 'number' && s.minute >= OPEN && s.minute < CLOSE ? s.minute : OPEN;
+      return { ...base, ...s, debts, minute, today: { ...base.today, ...(s.today ?? {}) }, stats: { ...base.stats, ...(s.stats ?? {}) }, stage: Math.max(0, Math.min(STAGES.length - 1, s.stage)) } as SaveState;
     } catch {
       return null;
     }

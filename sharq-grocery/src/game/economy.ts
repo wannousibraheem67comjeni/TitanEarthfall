@@ -6,6 +6,32 @@
  */
 import type { Rng } from '../core/rng';
 
+/** The packaging a product comes in, for the 3D goods on shelves and on the desk. */
+export type Pack =
+  | 'water'
+  | 'bottle'
+  | 'jug'
+  | 'can'
+  | 'tin'
+  | 'carton'
+  | 'box'
+  | 'flatbox'
+  | 'pillow'
+  | 'bread'
+  | 'sack'
+  | 'eggs'
+  | 'tray'
+  | 'produce'
+  | 'jar'
+  | 'perfume'
+  | 'card'
+  | 'folded'
+  | 'bigbox'
+  | 'case'
+  | 'folder'
+  | 'chicken'
+  | 'gum';
+
 export interface Product {
   id: string;
   name: string;
@@ -16,65 +42,90 @@ export interface Product {
   cost: number;
   /** First stage (0-based) that stocks it. */
   stage: number;
-  shape: 'box' | 'bottle' | 'can' | 'bag' | 'tray' | 'jar' | 'crate';
+  pack: Pack;
   color: string;
+  /** How a customer says one, two, or several of it ("قنينة ماي", "قنينتين ماي", "قناني ماي"). */
+  say: [string, string, string];
+  /** The (made-up) brand printed on the pack. */
+  brand: string;
 }
 
-export const PRODUCTS: Product[] = [
+type Row = [id: string, name: string, icon: string, price: number, cost: number, pack: Pack, color: string, say: [string, string, string], brand: string];
+
+/** Shelf prices are close to what a small UAE grocery charges; the cost is the wholesale price. */
+const ROWS: Row[][] = [
   // 0 · كشك صغير
-  { id: 'water', name: 'ماي', icon: '💧', price: 1, cost: 0.5, stage: 0, shape: 'bottle', color: '#7cc4f2' },
-  { id: 'gum', name: 'علكة', icon: '🍬', price: 1, cost: 0.5, stage: 0, shape: 'box', color: '#e85aa0' },
-  { id: 'bread', name: 'خبز', icon: '🍞', price: 2, cost: 1.5, stage: 0, shape: 'bag', color: '#e8c48a' },
-  { id: 'chips', name: 'شيبس', icon: '🥔', price: 2, cost: 1.5, stage: 0, shape: 'bag', color: '#f2c230' },
-  { id: 'biscuit', name: 'بسكويت', icon: '🍪', price: 2, cost: 1, stage: 0, shape: 'box', color: '#b5733a' },
-  { id: 'laban', name: 'لبن', icon: '🥛', price: 3, cost: 2, stage: 0, shape: 'bottle', color: '#f4f4f0' },
-  { id: 'juice', name: 'عصير', icon: '🧃', price: 3, cost: 2, stage: 0, shape: 'box', color: '#f28b30' },
-  { id: 'milk', name: 'حليب', icon: '🥛', price: 6, cost: 4.5, stage: 0, shape: 'box', color: '#3f86b8' },
+  [
+    ['water', 'ماي ٥٠٠ مل', '💧', 1, 0.5, 'water', '#4fa8e0', ['قنينة ماي', 'قنينتين ماي', 'قناني ماي'], 'نبع الشرق'],
+    ['gum', 'علكة', '🍬', 1, 0.5, 'gum', '#e85aa0', ['علكة', 'علكتين', 'علك'], 'نعناع'],
+    ['bread', 'خبز عربي', '🫓', 2, 1.4, 'bread', '#e8c48a', ['ربطة خبز', 'ربطتين خبز', 'ربطات خبز'], 'مخبز الفريج'],
+    ['chips', 'شيبس', '🥔', 2, 1.3, 'pillow', '#f2c230', ['كيس شيبس', 'كيسين شيبس', 'أكياس شيبس'], 'قرمش'],
+    ['biscuit', 'بسكويت', '🍪', 2, 1.2, 'flatbox', '#b5733a', ['باكيت بسكويت', 'باكيتين بسكويت', 'باكيتات بسكويت'], 'الواحة'],
+    ['laban', 'لبن', '🥛', 3, 2, 'jug', '#f4f4f0', ['علبة لبن', 'علبتين لبن', 'علب لبن'], 'مزارع الشرق'],
+    ['juice', 'عصير', '🧃', 3, 2, 'carton', '#f28b30', ['عصير', 'عصيرين', 'عصيرات'], 'البستان'],
+    ['milk', 'حليب طازج ١ لتر', '🥛', 6, 4.5, 'jug', '#3f86b8', ['علبة حليب', 'علبتين حليب', 'علب حليب'], 'مزارع الشرق'],
+  ],
   // 1 · بقالة صغيرة
-  { id: 'cola', name: 'مشروب غازي', icon: '🥤', price: 3, cost: 2, stage: 1, shape: 'can', color: '#c2302a' },
-  { id: 'icecream', name: 'آيس كريم', icon: '🍦', price: 4, cost: 2.5, stage: 1, shape: 'box', color: '#f6d6e6' },
-  { id: 'sugar', name: 'سكر', icon: '🧂', price: 6, cost: 4.5, stage: 1, shape: 'bag', color: '#ffffff' },
-  { id: 'tuna', name: 'تونة', icon: '🐟', price: 7, cost: 5, stage: 1, shape: 'can', color: '#2f6fb0' },
-  { id: 'tea', name: 'شاي', icon: '🍵', price: 9, cost: 6.5, stage: 1, shape: 'box', color: '#c23b2e' },
-  { id: 'eggs', name: 'بيض (٣٠)', icon: '🥚', price: 14, cost: 10, stage: 1, shape: 'tray', color: '#f0dcc0' },
+  [
+    ['cola', 'مشروب غازي', '🥤', 3, 2, 'can', '#c2302a', ['علبة غازي', 'علبتين غازي', 'علب غازي'], 'فوّار'],
+    ['icecream', 'آيس كريم', '🍦', 4, 2.5, 'flatbox', '#f6d6e6', ['آيس كريم', 'آيس كريمين', 'آيس كريمات'], 'ثلج'],
+    ['sugar', 'سكر ١ كيلو', '🧂', 6, 4.5, 'pillow', '#ffffff', ['كيس سكر', 'كيسين سكر', 'أكياس سكر'], 'الصافي'],
+    ['tuna', 'تونة', '🐟', 7, 5, 'tin', '#2f6fb0', ['علبة تونة', 'علبتين تونة', 'علب تونة'], 'بحر عمان'],
+    ['tea', 'شاي ١٠٠ كيس', '🍵', 9, 6.5, 'box', '#c23b2e', ['علبة شاي', 'علبتين شاي', 'علب شاي'], 'كرك'],
+    ['eggs', 'بيض ٣٠ حبة', '🥚', 14, 10, 'eggs', '#f0dcc0', ['طبق بيض', 'طبقين بيض', 'أطباق بيض'], 'مزرعة الذيد'],
+  ],
   // 2 · بقالة الحي
-  { id: 'pasta', name: 'معكرونة', icon: '🍝', price: 4, cost: 2.5, stage: 2, shape: 'bag', color: '#e9b44c' },
-  { id: 'cheese', name: 'جبن', icon: '🧀', price: 12, cost: 8.5, stage: 2, shape: 'box', color: '#f2d24a' },
-  { id: 'oil', name: 'زيت طبخ', icon: '🫒', price: 15, cost: 11, stage: 2, shape: 'bottle', color: '#d9b030' },
-  { id: 'dates', name: 'تمر', icon: '🌴', price: 20, cost: 14, stage: 2, shape: 'box', color: '#6b3d1e' },
-  { id: 'chicken', name: 'دجاج مجمد', icon: '🍗', price: 22, cost: 16, stage: 2, shape: 'bag', color: '#e6d3b8' },
-  { id: 'rice', name: 'رز ٥ كيلو', icon: '🍚', price: 32, cost: 25, stage: 2, shape: 'bag', color: '#f4efe4' },
+  [
+    ['pasta', 'معكرونة', '🍝', 4, 2.5, 'pillow', '#e9b44c', ['باكيت معكرونة', 'باكيتين معكرونة', 'باكيتات معكرونة'], 'الريف'],
+    ['cheese', 'جبن مثلثات', '🧀', 12, 8.5, 'box', '#f2d24a', ['علبة جبن', 'علبتين جبن', 'علب جبن'], 'البقرة السعيدة'],
+    ['oil', 'زيت طبخ ١.٨ لتر', '🫒', 15, 11, 'bottle', '#d9b030', ['قنينة زيت', 'قنينتين زيت', 'قناني زيت'], 'الذهبي'],
+    ['dates', 'تمر خلاص', '🌴', 20, 14, 'box', '#6b3d1e', ['علبة تمر', 'علبتين تمر', 'علب تمر'], 'نخيل العين'],
+    ['chicken', 'دجاج مجمد', '🍗', 22, 16, 'chicken', '#e6d3b8', ['دجاجة مجمدة', 'دجاجتين مجمدات', 'دجاجات مجمدة'], 'الدواجن الوطنية'],
+    ['rice', 'رز بسمتي ٥ كيلو', '🍚', 32, 25, 'sack', '#f4efe4', ['كيس رز', 'كيسين رز', 'أكياس رز'], 'البسمتي الذهبي'],
+  ],
   // 3 · ميني ماركت
-  { id: 'tomato', name: 'طماط (كيلو)', icon: '🍅', price: 5, cost: 3, stage: 3, shape: 'crate', color: '#d8352b' },
-  { id: 'apple', name: 'تفاح (كيلو)', icon: '🍎', price: 9, cost: 6, stage: 3, shape: 'crate', color: '#c8302c' },
-  { id: 'soap', name: 'منظف', icon: '🧽', price: 14, cost: 9, stage: 3, shape: 'bottle', color: '#3fbf9f' },
-  { id: 'shampoo', name: 'شامبو', icon: '🧴', price: 18, cost: 12, stage: 3, shape: 'bottle', color: '#7a5aa6' },
-  { id: 'coffee', name: 'قهوة عربية', icon: '☕', price: 28, cost: 19, stage: 3, shape: 'jar', color: '#8a5a2b' },
-  { id: 'card', name: 'بطاقة شحن', icon: '📱', price: 50, cost: 47, stage: 3, shape: 'box', color: '#1f6fd0' },
+  [
+    ['tomato', 'طماط (كيلو)', '🍅', 5, 3, 'produce', '#d8352b', ['كيلو طماط', 'كيلوين طماط', 'كيلو طماط'], ''],
+    ['apple', 'تفاح (كيلو)', '🍎', 9, 6, 'produce', '#c8302c', ['كيلو تفاح', 'كيلوين تفاح', 'كيلو تفاح'], ''],
+    ['soap', 'منظف أرضيات', '🧽', 14, 9, 'bottle', '#3fbf9f', ['قنينة منظف', 'قنينتين منظف', 'قناني منظف'], 'لمعة'],
+    ['shampoo', 'شامبو', '🧴', 18, 12, 'bottle', '#7a5aa6', ['قنينة شامبو', 'قنينتين شامبو', 'قناني شامبو'], 'حرير'],
+    ['coffee', 'قهوة عربية', '☕', 28, 19, 'pillow', '#8a5a2b', ['باكيت قهوة', 'باكيتين قهوة', 'باكيتات قهوة'], 'دلّة'],
+    ['card', 'بطاقة شحن ٥٠', '📱', 50, 47, 'card', '#1f6fd0', ['بطاقة شحن', 'بطاقتين شحن', 'بطاقات شحن'], 'شحن'],
+  ],
   // 4 · سوبرماركت
-  { id: 'toy', name: 'لعبة أطفال', icon: '🧸', price: 30, cost: 18, stage: 4, shape: 'box', color: '#e0a526' },
-  { id: 'fish', name: 'سمك طازج', icon: '🐠', price: 35, cost: 26, stage: 4, shape: 'tray', color: '#9fc3d6' },
-  { id: 'meat', name: 'لحم', icon: '🥩', price: 45, cost: 34, stage: 4, shape: 'tray', color: '#b8433a' },
-  { id: 'diapers', name: 'حفاضات', icon: '👶', price: 45, cost: 33, stage: 4, shape: 'bag', color: '#9fd0f0' },
-  { id: 'honey', name: 'عسل سدر', icon: '🍯', price: 60, cost: 40, stage: 4, shape: 'jar', color: '#e0a526' },
-  { id: 'perfume', name: 'عطر', icon: '🌸', price: 95, cost: 60, stage: 4, shape: 'bottle', color: '#c46aa8' },
+  [
+    ['toy', 'لعبة أطفال', '🧸', 30, 18, 'box', '#e0a526', ['لعبة أطفال', 'لعبتين أطفال', 'ألعاب أطفال'], 'فرحة'],
+    ['fish', 'سمك طازج (كيلو)', '🐠', 35, 26, 'tray', '#9fc3d6', ['كيلو سمك', 'كيلوين سمك', 'كيلو سمك'], 'سوق خورفكان'],
+    ['meat', 'لحم (كيلو)', '🥩', 45, 34, 'tray', '#b8433a', ['كيلو لحم', 'كيلوين لحم', 'كيلو لحم'], 'ملحمة الشرق'],
+    ['diapers', 'حفاضات', '👶', 45, 33, 'sack', '#9fd0f0', ['باكيت حفاضات', 'باكيتين حفاضات', 'باكيتات حفاضات'], 'نونو'],
+    ['honey', 'عسل سدر', '🍯', 60, 40, 'jar', '#e0a526', ['علبة عسل سدر', 'علبتين عسل سدر', 'علب عسل سدر'], 'جبال حتّا'],
+    ['perfume', 'عطر', '🌸', 95, 60, 'perfume', '#c46aa8', ['عطر', 'عطرين', 'عطور'], 'دهن العود'],
+  ],
   // 5 · هايبرماركت
-  { id: 'charger', name: 'شاحن', icon: '🔌', price: 40, cost: 22, stage: 5, shape: 'box', color: '#f4f4f2' },
-  { id: 'shirt', name: 'ملابس', icon: '👕', price: 70, cost: 40, stage: 5, shape: 'box', color: '#3f86b8' },
-  { id: 'pots', name: 'طقم قدور', icon: '🍳', price: 85, cost: 55, stage: 5, shape: 'box', color: '#8d9297' },
-  { id: 'headphones', name: 'سماعات', icon: '🎧', price: 120, cost: 80, stage: 5, shape: 'box', color: '#2b2d31' },
-  { id: 'bike', name: 'دراجة أطفال', icon: '🚲', price: 350, cost: 240, stage: 5, shape: 'crate', color: '#d8352b' },
-  { id: 'tv', name: 'تلفزيون', icon: '📺', price: 1200, cost: 950, stage: 5, shape: 'box', color: '#151515' },
+  [
+    ['charger', 'شاحن جوال', '🔌', 40, 22, 'flatbox', '#f4f4f2', ['شاحن', 'شاحنين', 'شواحن'], 'طاقة'],
+    ['shirt', 'ملابس', '👕', 70, 40, 'folded', '#3f86b8', ['قطعة ملابس', 'قطعتين ملابس', 'قطع ملابس'], ''],
+    ['pots', 'طقم قدور', '🍳', 85, 55, 'bigbox', '#8d9297', ['طقم قدور', 'طقمين قدور', 'أطقم قدور'], 'المطبخ'],
+    ['headphones', 'سماعات', '🎧', 120, 80, 'box', '#2b2d31', ['سماعة', 'سماعتين', 'سماعات'], 'صدى'],
+    ['bike', 'دراجة أطفال', '🚲', 350, 240, 'bigbox', '#d8352b', ['دراجة أطفال', 'دراجتين أطفال', 'دراجات أطفال'], 'سبيد'],
+    ['tv', 'تلفزيون ٥٥ بوصة', '📺', 1200, 950, 'bigbox', '#151515', ['تلفزيون', 'تلفزيونين', 'تلفزيونات'], 'شاشة'],
+  ],
   // 6 · سلسلة فروع (جملة)
-  { id: 'watercase', name: 'كرتون ماي (٢٤)', icon: '📦', price: 18, cost: 11, stage: 6, shape: 'crate', color: '#7cc4f2' },
-  { id: 'oilcase', name: 'كرتون زيت', icon: '📦', price: 160, cost: 120, stage: 6, shape: 'crate', color: '#d9b030' },
-  { id: 'ricesack', name: 'كيس رز ٤٠ كيلو', icon: '🍚', price: 190, cost: 150, stage: 6, shape: 'bag', color: '#f4efe4' },
-  { id: 'datesbox', name: 'صندوق تمر فاخر', icon: '🌴', price: 250, cost: 160, stage: 6, shape: 'crate', color: '#6b3d1e' },
+  [
+    ['watercase', 'كرتون ماي ٢٤', '📦', 18, 11, 'case', '#4fa8e0', ['كرتون ماي', 'كرتونين ماي', 'كراتين ماي'], 'نبع الشرق'],
+    ['oilcase', 'كرتون زيت', '📦', 160, 120, 'bigbox', '#d9b030', ['كرتون زيت', 'كرتونين زيت', 'كراتين زيت'], 'الذهبي'],
+    ['ricesack', 'كيس رز ٤٠ كيلو', '🍚', 190, 150, 'sack', '#f4efe4', ['كيس رز كبير', 'كيسين رز كبار', 'أكياس رز كبار'], 'البسمتي الذهبي'],
+    ['datesbox', 'صندوق تمر فاخر', '🌴', 250, 160, 'bigbox', '#6b3d1e', ['صندوق تمر', 'صندوقين تمر', 'صناديق تمر'], 'نخيل العين'],
+  ],
   // 7 · مجموعة شرق الإمارات القابضة (عقود توريد)
-  { id: 'school', name: 'توريد مقصف مدرسة', icon: '🏫', price: 12000, cost: 8500, stage: 7, shape: 'crate', color: '#3f9150' },
-  { id: 'hotel', name: 'توريد فندق شهري', icon: '🏨', price: 25000, cost: 18000, stage: 7, shape: 'crate', color: '#c9a54a' },
-  { id: 'airline', name: 'طلبية شركة طيران', icon: '✈️', price: 60000, cost: 44000, stage: 7, shape: 'crate', color: '#2c4f8a' },
+  [
+    ['school', 'توريد مقصف مدرسة', '🏫', 12000, 8500, 'folder', '#3f9150', ['عقد توريد مقصف مدرسة', 'عقدين توريد مقاصف مدارس', 'عقود توريد مقاصف مدارس'], ''],
+    ['hotel', 'توريد فندق شهري', '🏨', 25000, 18000, 'folder', '#c9a54a', ['عقد توريد فندق لشهر', 'عقدين توريد فنادق', 'عقود توريد فنادق'], ''],
+    ['airline', 'طلبية شركة طيران', '✈️', 60000, 44000, 'folder', '#2c4f8a', ['طلبية شركة طيران', 'طلبيتين لشركات طيران', 'طلبيات لشركات طيران'], ''],
+  ],
 ];
+
+export const PRODUCTS: Product[] = ROWS.flatMap((rows, stage) => rows.map(([id, name, icon, price, cost, pack, color, say, brand]) => ({ id, name, icon, price, cost, stage, pack, color, say, brand })));
 
 export const PRODUCT_BY_ID = new Map(PRODUCTS.map((p) => [p.id, p]));
 
@@ -82,32 +133,32 @@ export interface Stage {
   name: string;
   /** The sign over the door. */
   sign: string;
-  /** Seconds between customers at three stars. */
+  /** Real seconds between customers on an average hour, at two and a half stars. */
   spawn: number;
   /** Different products in a basket, and how many of each. */
   items: [number, number];
   qty: [number, number];
   /** Savings needed to move up to the next stage (null at the top). */
   next: number | null;
-  /** Income per minute from branches and contracts, beyond the counter. */
+  /** Income every shop hour from branches and contracts, beyond the till. */
   passive: number;
   /** What the stage adds, in a line. */
   adds: string;
 }
 
 export const STAGES: Stage[] = [
-  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', spawn: 8, items: [1, 2], qty: [1, 2], next: 40, passive: 0, adds: 'رف واحد وثمان أغراض. زبون كل فترة.' },
-  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', spawn: 7, items: [1, 3], qty: [1, 3], next: 180, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم.' },
-  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', spawn: 6.5, items: [2, 4], qty: [1, 3], next: 750, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
-  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', spawn: 6, items: [2, 5], qty: [1, 4], next: 2400, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة.' },
-  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', spawn: 5.5, items: [2, 5], qty: [1, 3], next: 6000, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب.' },
-  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', spawn: 5, items: [2, 5], qty: [1, 2], next: 24000, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية.' },
-  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', spawn: 5, items: [2, 4], qty: [5, 30], next: 160000, passive: 5000, adds: 'فروع بكلباء وخورفكان والفجيرة: دخل كل دقيقة، وطلبات جملة.' },
-  { name: 'مجموعة قابضة', sign: 'مجموعة شرق الإمارات القابضة', spawn: 4, items: [1, 2], qty: [1, 3], next: null, passive: 150000, adds: 'عقود توريد للمدارس والفنادق وشركات الطيران.' },
+  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', spawn: 40, items: [1, 3], qty: [1, 3], next: 25, passive: 0, adds: 'رف واحد وثلاجة صغيرة. زبون كل فترة.' },
+  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', spawn: 34, items: [1, 3], qty: [1, 3], next: 75, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم وبيض.' },
+  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', spawn: 30, items: [2, 4], qty: [1, 3], next: 300, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
+  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', spawn: 27, items: [2, 5], qty: [1, 3], next: 550, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة وبطاقات شحن.' },
+  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', spawn: 24, items: [2, 5], qty: [1, 3], next: 1500, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب.' },
+  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', spawn: 21, items: [2, 5], qty: [1, 2], next: 5500, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية.' },
+  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', spawn: 20, items: [2, 4], qty: [5, 30], next: 100000, passive: 6000, adds: 'فروع بكلباء وخورفكان والفجيرة تجيب دخل كل ساعة، وطلبات جملة.' },
+  { name: 'مجموعة قابضة', sign: 'مجموعة شرق الإمارات القابضة', spawn: 18, items: [1, 2], qty: [1, 3], next: null, passive: 350000, adds: 'عقود توريد للمدارس والفنادق وشركات الطيران.' },
 ];
 
-/** Savings grow by this fraction every minute. */
-export const SAVINGS_RATE = 0.01;
+/** Savings earn this fraction once a day, when the shop closes. */
+export const DAILY_INTEREST = 0.02;
 
 export function stocked(stage: number): Product[] {
   return PRODUCTS.filter((p) => p.stage <= stage);
@@ -119,19 +170,22 @@ export function stocked(stage: number): Product[] {
 
 export type Kind = 'normal' | 'big' | 'discount' | 'short' | 'kid' | 'trick' | 'coupon' | 'fake' | 'credit' | 'repay';
 
-/** How often each kind of bill turns up at each stage. */
+/** How often each kind of bill turns up at each stage: most people are honest. */
 const MIX: Record<Kind, number[]> = {
-  normal: [62, 52, 46, 42, 40, 40, 44, 50],
-  big: [0, 4, 7, 8, 9, 10, 12, 14],
-  discount: [8, 9, 9, 9, 8, 8, 8, 8],
-  short: [10, 9, 8, 7, 6, 5, 4, 3],
-  kid: [10, 9, 7, 6, 5, 4, 2, 0],
-  trick: [6, 7, 8, 8, 8, 8, 8, 8],
-  coupon: [0, 0, 0, 5, 6, 7, 6, 5],
-  fake: [0, 5, 6, 6, 7, 7, 7, 6],
-  credit: [4, 5, 6, 6, 6, 6, 5, 4],
+  normal: [64, 58, 54, 50, 48, 48, 52, 56],
+  big: [0, 3, 5, 6, 7, 8, 10, 12],
+  discount: [6, 7, 7, 7, 7, 7, 7, 7],
+  short: [8, 7, 6, 5, 5, 4, 3, 3],
+  kid: [10, 9, 8, 7, 6, 5, 3, 0],
+  trick: [5, 6, 7, 7, 7, 7, 7, 7],
+  coupon: [0, 0, 0, 4, 5, 6, 5, 4],
+  fake: [0, 4, 5, 6, 6, 6, 6, 5],
+  credit: [4, 5, 5, 5, 5, 5, 4, 3],
   repay: [0, 0, 0, 0, 0, 0, 0, 0],
 };
+
+/** The share of honest customers who pay by card, by stage (a kiosk is mostly cash). */
+const CARD = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.6, 0.8];
 
 export interface Line {
   product: Product;
@@ -148,8 +202,9 @@ export interface Bill {
   cost: number;
   /** What the customer actually hands over if the bill is accepted (0 on credit). */
   pays: number;
-  /** The banknote(s) handed over, for change. */
+  /** The banknote(s) handed over, for change (0 when paying by card or on credit). */
   note: number;
+  pay: 'cash' | 'card';
   discount?: number;
   /** Price trick: the line the customer lies about. */
   claim?: { product: Product; said: number };
@@ -204,7 +259,7 @@ export function makeBill(rng: Rng, stage: number, kind: Kind = pickKind(rng, sta
   }
   const total = sum(lines.map((l) => l.product.price * l.qty));
   const cost = sum(lines.map((l) => l.product.cost * l.qty));
-  const bill: Bill = { kind, lines, total, cost, pays: total, note: noteFor(total) };
+  const bill: Bill = { kind, lines, total, cost, pays: total, note: noteFor(total), pay: 'cash' };
   switch (kind) {
     case 'discount':
       bill.discount = rng.pick([5, 10, 15, 20, 30]);
@@ -240,6 +295,10 @@ export function makeBill(rng: Rng, stage: number, kind: Kind = pickKind(rng, sta
       bill.pays = 0;
       bill.note = 0;
       break;
+  }
+  if ((kind === 'normal' || kind === 'big') && rng.chance(CARD[stage])) {
+    bill.pay = 'card';
+    bill.note = 0;
   }
   return bill;
 }

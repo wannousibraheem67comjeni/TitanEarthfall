@@ -148,39 +148,141 @@ export class Sfx {
     this.tone(880, 0.1, 'sine', 0.06, 0.08);
   }
 
-  /** The fridge's low hum and the odd bird outside the door. */
+  /** The door sensor's two-tone chime. */
+  doorChime(): void {
+    this.tone(784, 0.55, 'sine', 0.09);
+    this.tone(622, 0.8, 'sine', 0.08, 0.32);
+  }
+
+  /** The scanner's beep as an item is rung up. */
+  beep(): void {
+    this.tone(2350, 0.07, 'square', 0.035);
+  }
+
+  /** The receipt printer chattering for `secs`. */
+  printer(secs = 0.8): void {
+    if (!this.ctx || !this.master) return;
+    for (let t = 0; t < secs; t += 0.045) this.noise(0.03, 0.08, 2600 + Math.random() * 600, t, 3);
+  }
+
+  /** Cash drawer sliding out, coins shifting. */
+  drawer(): void {
+    this.noise(0.18, 0.25, 900, 0, 0.8);
+    this.tone(180, 0.12, 'triangle', 0.08, 0.02);
+    for (let i = 0; i < 3; i++) this.tone(2600 + Math.random() * 1200, 0.1, 'triangle', 0.04, 0.12 + i * 0.05);
+  }
+
+  /** The card machine approving a payment. */
+  cardBeep(): void {
+    this.tone(1760, 0.09, 'sine', 0.07);
+    this.tone(2093, 0.16, 'sine', 0.07, 0.11);
+  }
+
+  /** A car going past outside, quieter the further away it is. */
+  whoosh(distance: number): void {
+    if (!this.ctx || !this.master) return;
+    const g = Math.max(0.02, 0.22 - distance * 0.012);
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const len = Math.floor(ctx.sampleRate * 2.2);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.linearRampToValueAtTime(900, t + 1.0);
+    f.frequency.linearRampToValueAtTime(250, t + 2.2);
+    const v = ctx.createGain();
+    v.gain.setValueAtTime(0.0001, t);
+    v.gain.exponentialRampToValueAtTime(g, t + 1.0);
+    v.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+    src.connect(f).connect(v).connect(this.master);
+    src.start(t);
+  }
+
+  private street: GainNode | null = null;
+  private night: GainNode | null = null;
+
+  /** Inside: the air conditioner's hush and the fridges' hum. Outside: the street, and crickets at night. */
   startAmbience(): void {
     if (!this.ctx || !this.master || this.ambience) return;
     const ctx = this.ctx;
-    const len = ctx.sampleRate * 3;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < len; i++) {
-      last = last * 0.98 + (Math.random() * 2 - 1) * 0.02;
-      d[i] = last * 4;
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.value = 300;
-    const g = ctx.createGain();
-    g.gain.value = 0.12;
-    src.connect(f).connect(g).connect(this.master);
-    src.start();
-    const birds = setInterval(() => {
-      if (Math.random() < 0.35) {
-        const base = 2200 + Math.random() * 1500;
-        for (let i = 0; i < 3; i++) this.tone(base + i * 120, 0.08, 'sine', 0.025, i * 0.11, 400);
+    const loop = (seconds: number, fill: (d: Float32Array, rate: number) => void) => {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
+      fill(buf.getChannelData(0), ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      return src;
+    };
+    const brown = (d: Float32Array) => {
+      let last = 0;
+      for (let i = 0; i < d.length; i++) {
+        last = last * 0.985 + (Math.random() * 2 - 1) * 0.015;
+        d[i] = last * 3.5;
       }
-    }, 4000);
+    };
+    // AC: soft broadband hush.
+    const ac = loop(4, brown);
+    const acF = ctx.createBiquadFilter();
+    acF.type = 'lowpass';
+    acF.frequency.value = 700;
+    const acG = ctx.createGain();
+    acG.gain.value = 0.09;
+    ac.connect(acF).connect(acG).connect(this.master);
+    // Fridge compressors: a low hum.
+    const hum = ctx.createOscillator();
+    hum.frequency.value = 98;
+    const humG = ctx.createGain();
+    humG.gain.value = 0.012;
+    hum.connect(humG).connect(this.master);
+    // The street through the glass.
+    const st = loop(5, brown);
+    const stF = ctx.createBiquadFilter();
+    stF.type = 'bandpass';
+    stF.frequency.value = 380;
+    stF.Q.value = 0.5;
+    this.street = ctx.createGain();
+    this.street.gain.value = 0.05;
+    st.connect(stF).connect(this.street).connect(this.master);
+    // Crickets at night.
+    const cr = loop(2, (d, rate) => {
+      for (let i = 0; i < d.length; i++) {
+        const t = i / rate;
+        const chirp = Math.floor(t * 5) % 4 === 0 ? 1 : 0;
+        d[i] = Math.sin(t * Math.PI * 2 * 4200) * chirp * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 30));
+      }
+    });
+    this.night = ctx.createGain();
+    this.night.gain.value = 0;
+    cr.connect(this.night).connect(this.master);
+    ac.start();
+    hum.start();
+    st.start();
+    cr.start();
+    const birds = setInterval(() => {
+      if (Math.random() < 0.3 && (this.night?.gain.value ?? 0) < 0.002) {
+        const base = 2600 + Math.random() * 1400;
+        for (let i = 0; i < 3; i++) this.tone(base + i * 140, 0.07, 'sine', 0.012, i * 0.1, 300);
+      }
+    }, 5000);
     this.ambience = {
       stop: () => {
-        src.stop();
+        ac.stop();
+        hum.stop();
+        st.stop();
+        cr.stop();
         clearInterval(birds);
       },
     };
+  }
+
+  /** How loud the street is (0–1) and how dark it is (0–1). */
+  setOutside(busy: number, night: number): void {
+    if (this.street) this.street.gain.value = 0.02 + busy * 0.05;
+    if (this.night) this.night.gain.value = night * 0.006;
   }
 }

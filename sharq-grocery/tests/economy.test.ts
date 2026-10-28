@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng';
 import { acceptGain, decide, fmt, type Kind, LADDER, makeBill, noteFor, PRODUCTS, rank, STAGES, stocked } from '../src/game/economy';
+import { billSpeech, itemPhrase, sayMoney } from '../src/game/lines';
 
 const KINDS: Kind[] = ['normal', 'big', 'discount', 'short', 'kid', 'trick', 'coupon', 'fake', 'credit'];
 
@@ -32,7 +33,7 @@ describe('bills', () => {
           expect(b.lines.length).toBeGreaterThan(0);
           expect(b.total).toBeCloseTo(b.lines.reduce((a, l) => a + l.product.price * l.qty, 0), 2);
           expect(b.cost).toBeLessThan(b.total);
-          if (kind !== 'credit') expect(b.note).toBeGreaterThanOrEqual(b.pays);
+          if (kind !== 'credit' && b.pay === 'cash') expect(b.note).toBeGreaterThanOrEqual(b.pays);
           for (const l of b.lines) expect(l.product.stage).toBeLessThanOrEqual(stage);
         }
   });
@@ -47,6 +48,20 @@ describe('bills', () => {
     const kid = makeBill(rng, 0, 'kid');
     expect(kid.pays).toBe(kid.total - 1);
     expect(makeBill(rng, 1, 'credit').pays).toBe(0);
+  });
+
+  it('card payments come only with honest bills, more often in bigger shops', () => {
+    const rng = new Rng(9);
+    const share = (stage: number) => {
+      let card = 0;
+      for (let i = 0; i < 400; i++) {
+        const b = makeBill(rng, stage, 'normal');
+        if (b.pay === 'card') card++;
+      }
+      return card / 400;
+    };
+    expect(share(0)).toBeLessThan(share(5));
+    for (const kind of ['fake', 'trick', 'coupon', 'credit', 'kid'] as Kind[]) expect(makeBill(rng, 5, kind).pay).toBe('cash');
   });
 
   it('use the smallest banknote that covers the amount', () => {
@@ -122,5 +137,44 @@ describe('ladder and money words', () => {
     expect(fmt(11)).toBe('11 درهم');
     expect(fmt(2.5)).toBe('2.5 درهم');
     expect(fmt(24000)).toBe('24,000 درهم');
+  });
+});
+
+describe('what customers say', () => {
+  const persona = (gender: 'm' | 'f', child = false) => ({ name: 'سالم', look: {} as never, gender, pitch: 1, key: 'x', trust: 0.8, child });
+
+  it('names each item, how they pay, and asks to accept or refuse', () => {
+    const rng = new Rng(21);
+    for (let i = 0; i < 40; i++) {
+      const b = makeBill(rng, 3, 'normal');
+      const s = billSpeech(rng, b, persona('m'), 'm', 8 * 60);
+      expect(s.marks).toHaveLength(b.lines.length);
+      b.lines.forEach((l, j) => expect(s.text.slice(s.marks[j].at)).toMatch(new RegExp(`^و?${itemPhrase(l)}`)));
+      expect(s.text).toContain('تقبل فاتورتي ولا ترفضها؟');
+      expect(s.text).toMatch(b.pay === 'card' ? /بالبطاقة/ : /وهذي|تفضل/);
+    }
+  });
+
+  it('talks to her as her', () => {
+    const rng = new Rng(4);
+    const s = billSpeech(rng, makeBill(rng, 1, 'fake'), persona('f'), 'f', 9 * 60);
+    expect(s.text).toContain('تفضلي');
+    expect(s.text).toContain('مستعجلة');
+    expect(s.text).toContain('تقبلين فاتورتي ولا ترفضينها؟');
+  });
+
+  it('says quantities the way people do', () => {
+    const p = PRODUCTS.find((x) => x.id === 'water')!;
+    expect(itemPhrase({ product: p, qty: 1, price: 1 })).toBe('قنينة ماي');
+    expect(itemPhrase({ product: p, qty: 2, price: 1 })).toBe('قنينتين ماي');
+    expect(itemPhrase({ product: p, qty: 3, price: 1 })).toBe('ثلاث قناني ماي');
+    expect(itemPhrase({ product: p, qty: 24, price: 1 })).toBe('24 قنينة ماي');
+    expect(sayMoney(7.5)).toBe('7 ونص درهم');
+    expect(sayMoney(2)).toBe('درهمين');
+  });
+
+  it('a child asks the shopkeeper as uncle or auntie', () => {
+    const rng = new Rng(2);
+    expect(billSpeech(rng, makeBill(rng, 0, 'kid'), persona('m', true), 'f', 600).text).toMatch(/^خالة/);
   });
 });

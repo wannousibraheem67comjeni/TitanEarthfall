@@ -330,15 +330,15 @@ export class SpeechOutput {
   }
 
   /** Say a line. Resolves when finished (or immediately when muted). */
-  speak(text: string, p: VoiceProfile): Promise<void> {
+  speak(text: string, p: VoiceProfile, onBoundary?: (charIndex: number) => void): Promise<void> {
     const clean = text.replace(/[*_#]/g, '').replace(/\p{Extended_Pictographic}/gu, '').trim();
     if (!this.enabled || !clean) return Promise.resolve();
     this.cancel();
     if (this.azure && this.audio) return this.speakAzure(clean, p).catch((e) => {
       this.lastError = String((e as Error)?.message ?? e);
-      return this.speakDevice(clean, p);
+      return this.speakDevice(clean, p, onBoundary);
     });
-    return this.speakDevice(clean, p);
+    return this.speakDevice(clean, p, onBoundary);
   }
 
   private async speakAzure(text: string, p: VoiceProfile): Promise<void> {
@@ -374,7 +374,7 @@ export class SpeechOutput {
     });
   }
 
-  private speakDevice(text: string, p: VoiceProfile): Promise<void> {
+  private speakDevice(text: string, p: VoiceProfile, onBoundary?: (charIndex: number) => void): Promise<void> {
     if (!SpeechOutput.supported()) return Promise.resolve();
     return new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
@@ -400,6 +400,7 @@ export class SpeechOutput {
       const guard = setTimeout(finish, 1500 + text.length * 110);
       u.onend = finish;
       u.onerror = finish;
+      if (onBoundary) u.onboundary = (e) => onBoundary(e.charIndex);
       this.speakingUtterance = u;
       speechSynthesis.speak(u);
     });
