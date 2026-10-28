@@ -1,6 +1,6 @@
 /**
  * What people say at the desk, in Gulf Arabic. The customer greets, says what they
- * bought, how they are paying, and asks «تقبل فاتورتي ولا ترفضها؟». The marks say
+ * bought, how they are paying, and asks «تقبل فاتورتي؟». The marks say
  * where in the sentence each item is named, so the receipt prints it as it is said.
  * Then the shopkeeper's short answer, and the customer's reply.
  */
@@ -97,7 +97,7 @@ export function billSpeech(rng: Rng, b: Bill, p: Persona, keeper: Gender, minute
       break;
   }
   if (p.child) add(`${k('تقبل', 'تقبلين')}؟`);
-  else add(rng.chance(0.8) ? k('تقبل فاتورتي ولا ترفضها؟', 'تقبلين فاتورتي ولا ترفضينها؟') : k('شو تقول، تقبل فاتورتي ولا ترفضها؟', 'شو تقولين، تقبلين فاتورتي ولا ترفضينها؟'));
+  else add(rng.chance(0.8) ? k('تقبل فاتورتي؟', 'تقبلين فاتورتي؟') : k('تفضل، تقبل فاتورتي؟', 'تفضلي، تقبلين فاتورتي؟'));
   return { text, marks };
 }
 

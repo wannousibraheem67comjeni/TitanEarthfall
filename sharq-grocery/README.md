@@ -1,6 +1,6 @@
 # بقالة شرق الإمارات (Sharq Grocery)
 
-A 3D Arabic shop game, played from behind your own till. You own a tiny grocery on the UAE east coast that hardly anyone visits. Now and then someone comes along the pavement, pushes the door open, takes things off the shelves into a basket and sets them down on your desk one by one. Then they **say their bill out loud**: «السلام عليكم. اشتريت ربطة خبز، وعلبتين لبن… وهذي 20 درهم. تقبل فاتورتي ولا ترفضها؟». The receipt prints line by line as they name each item. When they finish speaking, the **accept** and **refuse** buttons come up at the bottom.
+A 3D Arabic shop game, played from behind your own till. You own a tiny grocery on the UAE east coast that hardly anyone visits. Now and then someone comes along the pavement, pushes the door open, takes things off the shelves into a basket and sets them down on your desk one by one. Then they **say their bill out loud**: «السلام عليكم. اشتريت ربطة خبز، وعلبتين لبن… وهذي 20 درهم. تقبل فاتورتي؟». The receipt prints line by line as they name each item. When they finish speaking, the **accept** button comes up at the bottom. There is no refusing: every customer is honest.
 
 Money gathers in the till. The big pink **«ادخار»** button saves it, and savings earn interest every night. When there is enough, the same button reads **«طوّر البقالة»** and grows the shop. There are eight stages, from a kiosk to a holding group, and the goal is to become **the richest person ever**.
 
@@ -18,17 +18,16 @@ npm run build:pages  # the same file, copied to ../docs/sharq/ for GitHub Pages
 - Customers come in waves: a breakfast rush, a quiet afternoon, a busy evening. Between them you wait, watching the street through the glass: cars going by, people walking past, the light changing from morning sun to street lamps.
 - At closing time you get a summary of the day: customers, sales, profit, and the night's interest on your savings. Then a new morning starts.
 
-## Deciding
+## At the desk
 
 | | |
 |---|---|
-| ✅ Accept | an honest bill. Your profit is the shelf price minus the wholesale cost. Many customers pay by card. |
-| ❌ Refuse | the tricks: a **fake banknote** (washed out, no security thread, and it reads «درهن»), a customer who claims a **lower price** than the shelf, an **expired coupon**, or a **discount** that makes you lose. |
-| 🧒 Children | come a dirham short. Saying yes earns stars. |
-| 📒 Credit | Some customers ask to go in the debt book. They may come back and pay, or not. |
-| ⭐ Stars | Good decisions bring more stars, and more stars bring more customers. Refusing an honest bill or keeping someone waiting costs stars. |
+| ✅ Accept | Take the payment: cash (with change), or a card on the machine. Your profit is the shelf price minus the wholesale cost. |
+| 🧒 Children | come a dirham short. Taking their coins anyway earns stars. |
+| 📒 Credit | Some neighbours ask to go in the debt book. Most come back and pay; a few don't. |
+| ⭐ Stars | Every served customer brings stars, and more stars bring more customers. Keeping someone waiting too long costs stars: they give up and leave. |
 
-Keyboard: Enter to accept, R to refuse, Space to save. Drag the picture to look around, and tap the subtitles to skip ahead.
+Keyboard: Enter to accept, Space to save. Drag the picture to look around, and tap the subtitles to skip ahead.
 
 ## Prices at every stage
 
@@ -36,16 +35,16 @@ Every product has a shelf price close to what a small UAE grocery charges, and a
 
 | Stage | Shop | Upgrade cost | New goods |
 |---|---|---|---|
-| 1 | كشك صغير | 25 | water, gum, Arabic bread, crisps, biscuits, laban, juice, milk |
-| 2 | بقالة صغيرة | 75 | soft drinks, ice cream, sugar, tuna, tea, eggs |
-| 3 | بقالة الحي | 300 | pasta, cheese, cooking oil, dates, frozen chicken, 5 kg rice |
-| 4 | ميني ماركت | 550 | tomatoes, apples, detergent, shampoo, Arabic coffee, phone credit |
-| 5 | سوبرماركت | 1,500 | toys, fish, meat, nappies, Sidr honey, perfume |
-| 6 | هايبرماركت | 5,500 | chargers, clothes, cookware, headphones, kids' bikes, TVs |
-| 7 | سلسلة فروع | 100,000 | wholesale cartons and sacks, plus 6,000 an hour from the branches |
+| 1 | كشك صغير | 30 | water, gum, Arabic bread, crisps, biscuits, laban, juice, milk |
+| 2 | بقالة صغيرة | 95 | soft drinks, ice cream, sugar, tuna, tea, eggs |
+| 3 | بقالة الحي | 380 | pasta, cheese, cooking oil, dates, frozen chicken, 5 kg rice |
+| 4 | ميني ماركت | 700 | tomatoes, apples, detergent, shampoo, Arabic coffee, phone credit |
+| 5 | سوبرماركت | 1,900 | toys, fish, meat, nappies, Sidr honey, perfume |
+| 6 | هايبرماركت | 7,000 | chargers, clothes, cookware, headphones, kids' bikes, TVs |
+| 7 | سلسلة فروع | 125,000 | wholesale cartons and sacks, plus 6,000 an hour from the branches |
 | 8 | مجموعة قابضة | — | school, hotel and airline supply contracts, plus 350,000 an hour |
 
-A player who decides well reaches the last stage in about 70 minutes, and the top of the ladder about half an hour later. `tests/pacing.test.ts` checks this.
+A player reaches the last stage in about 70 minutes, and the top of the ladder about half an hour later. `tests/pacing.test.ts` checks this.
 
 ## How it is made
 

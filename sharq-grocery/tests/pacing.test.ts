@@ -6,14 +6,14 @@ import { averageProfit, DAILY_INTEREST, decide, LADDER, makeBill, STAGES } from 
 /** Real minutes of a working day (one shop minute a second). */
 const DAY_MINUTES = (CLOSE - OPEN) / 60;
 
-/** Average till gain per customer for a player who decides well. */
+/** Average till gain per customer (every bill is accepted; debts count when repaid on average). */
 function gainPerCustomer(stage: number, rng: Rng): number {
   let gain = 0;
   const n = 800;
   for (let k = 0; k < n; k++) {
     const b = makeBill(rng, stage);
-    const accept = b.kind === 'normal' || b.kind === 'big' || b.kind === 'kid' || (b.kind === 'discount' && b.pays >= b.cost) || (b.kind === 'short' && b.pays >= b.cost);
-    gain += decide(b, accept, rng.next()).money;
+    gain += decide(b, true, rng.next()).money;
+    if (b.kind === 'credit') gain += b.total * 0.75;
   }
   return gain / n;
 }

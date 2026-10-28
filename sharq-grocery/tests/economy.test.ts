@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng';
-import { acceptGain, decide, fmt, type Kind, LADDER, makeBill, noteFor, PRODUCTS, rank, STAGES, stocked } from '../src/game/economy';
+import { acceptGain, decide, fmt, type Kind, LADDER, makeBill, noteFor, pickKind, PRODUCTS, rank, STAGES, stocked } from '../src/game/economy';
 import { billSpeech, itemPhrase, sayMoney } from '../src/game/lines';
 
 const KINDS: Kind[] = ['normal', 'big', 'discount', 'short', 'kid', 'trick', 'coupon', 'fake', 'credit'];
@@ -69,6 +69,20 @@ describe('bills', () => {
     expect(noteFor(20)).toBe(20);
     expect(noteFor(171)).toBe(200);
     expect(noteFor(2500)).toBe(3000);
+  });
+});
+
+describe('the shop takes every bill', () => {
+  it('only honest bills come in, at every stage', () => {
+    const rng = new Rng(17);
+    for (let stage = 0; stage < STAGES.length; stage++)
+      for (let i = 0; i < 300; i++) expect(['normal', 'big', 'kid', 'credit']).toContain(pickKind(rng, stage));
+  });
+
+  it('accepting an honest bill never loses money', () => {
+    const rng = new Rng(19);
+    for (let stage = 0; stage < STAGES.length; stage++)
+      for (const kind of ['normal', 'big'] as Kind[]) expect(decide(makeBill(rng, stage, kind), true, 0.5).money).toBeGreaterThan(0);
   });
 });
 
@@ -150,17 +164,17 @@ describe('what customers say', () => {
       const s = billSpeech(rng, b, persona('m'), 'm', 8 * 60);
       expect(s.marks).toHaveLength(b.lines.length);
       b.lines.forEach((l, j) => expect(s.text.slice(s.marks[j].at)).toMatch(new RegExp(`^و?${itemPhrase(l)}`)));
-      expect(s.text).toContain('تقبل فاتورتي ولا ترفضها؟');
+      expect(s.text).toContain('تقبل فاتورتي؟');
+      expect(s.text).not.toContain('ترفض');
       expect(s.text).toMatch(b.pay === 'card' ? /بالبطاقة/ : /وهذي|تفضل/);
     }
   });
 
   it('talks to her as her', () => {
     const rng = new Rng(4);
-    const s = billSpeech(rng, makeBill(rng, 1, 'fake'), persona('f'), 'f', 9 * 60);
-    expect(s.text).toContain('تفضلي');
-    expect(s.text).toContain('مستعجلة');
-    expect(s.text).toContain('تقبلين فاتورتي ولا ترفضينها؟');
+    const s = billSpeech(rng, makeBill(rng, 1, 'credit'), persona('f'), 'f', 9 * 60);
+    expect(s.text).toContain('سجليها');
+    expect(s.text).toContain('تقبلين فاتورتي؟');
   });
 
   it('says quantities the way people do', () => {

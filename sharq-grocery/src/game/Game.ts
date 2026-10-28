@@ -415,7 +415,7 @@ export class Game {
     c.waited = 0;
     this.hud.showPink(false);
     this.sfx.pop();
-    this.decision.show((accept) => this.settle(c, accept), b.kind === 'repay');
+    this.decision.show(() => this.settle(c, true), b.kind === 'repay' ? '✅ استلم' : '✅ قبول');
   }
 
   private giveUp(c: Customer): void {
@@ -586,7 +586,7 @@ export class Game {
 
   private statsLine(): string {
     const st = this.store.s.stats;
-    return `خدمت ${st.customers} زبون، كشفت ${st.caught} حيلة، وجمعت أرباح ${fmt(Math.round(st.profit))}، وأرباح الادخار ${fmt(Math.round(st.interest))}.`;
+    return `خدمت ${st.customers} زبون، وجمعت أرباح ${fmt(Math.round(st.profit))}، وأرباح الادخار ${fmt(Math.round(st.interest))}.`;
   }
 }
 

@@ -418,12 +418,6 @@ button {
   }
 }
 
-.decide .row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
 .decide button {
   border: 3px solid #fff;
   border-radius: 18px;
@@ -435,17 +429,6 @@ button {
 .decide .accept {
   background: linear-gradient(180deg, #2fb36d, var(--green));
   box-shadow: 0 6px 0 #126a3f, 0 12px 26px rgba(0, 0, 0, 0.3);
-  order: -1;
-}
-
-.decide .reject {
-  background: linear-gradient(180deg, #e2574c, var(--red));
-  box-shadow: 0 6px 0 #8f241c, 0 12px 26px rgba(0, 0, 0, 0.3);
-}
-
-.decide button:only-child,
-.decide .row:has(.reject[hidden]) .accept {
-  grid-column: span 2;
 }
 
 .decide button:active {

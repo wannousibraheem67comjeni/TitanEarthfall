@@ -147,13 +147,13 @@ export interface Stage {
 }
 
 export const STAGES: Stage[] = [
-  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', spawn: 40, items: [1, 3], qty: [1, 3], next: 25, passive: 0, adds: 'رف واحد وثلاجة صغيرة. زبون كل فترة.' },
-  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', spawn: 34, items: [1, 3], qty: [1, 3], next: 75, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم وبيض.' },
-  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', spawn: 30, items: [2, 4], qty: [1, 3], next: 300, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
-  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', spawn: 27, items: [2, 5], qty: [1, 3], next: 550, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة وبطاقات شحن.' },
-  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', spawn: 24, items: [2, 5], qty: [1, 3], next: 1500, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب.' },
-  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', spawn: 21, items: [2, 5], qty: [1, 2], next: 5500, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية.' },
-  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', spawn: 20, items: [2, 4], qty: [5, 30], next: 100000, passive: 6000, adds: 'فروع بكلباء وخورفكان والفجيرة تجيب دخل كل ساعة، وطلبات جملة.' },
+  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', spawn: 40, items: [1, 3], qty: [1, 3], next: 30, passive: 0, adds: 'رف واحد وثلاجة صغيرة. زبون كل فترة.' },
+  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', spawn: 34, items: [1, 3], qty: [1, 3], next: 95, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم وبيض.' },
+  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', spawn: 30, items: [2, 4], qty: [1, 3], next: 380, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
+  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', spawn: 27, items: [2, 5], qty: [1, 3], next: 700, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة وبطاقات شحن.' },
+  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', spawn: 24, items: [2, 5], qty: [1, 3], next: 1900, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب.' },
+  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', spawn: 21, items: [2, 5], qty: [1, 2], next: 7000, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية.' },
+  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', spawn: 20, items: [2, 4], qty: [5, 30], next: 125000, passive: 6000, adds: 'فروع بكلباء وخورفكان والفجيرة تجيب دخل كل ساعة، وطلبات جملة.' },
   { name: 'مجموعة قابضة', sign: 'مجموعة شرق الإمارات القابضة', spawn: 18, items: [1, 2], qty: [1, 3], next: null, passive: 350000, adds: 'عقود توريد للمدارس والفنادق وشركات الطيران.' },
 ];
 
@@ -170,17 +170,21 @@ export function stocked(stage: number): Product[] {
 
 export type Kind = 'normal' | 'big' | 'discount' | 'short' | 'kid' | 'trick' | 'coupon' | 'fake' | 'credit' | 'repay';
 
-/** How often each kind of bill turns up at each stage: most people are honest. */
+/**
+ * How often each kind of bill turns up at each stage. There is no refusing in the
+ * shop, so only honest bills come in: everyday shopping, big shops, children a dirham
+ * short, and the odd neighbour who asks to go in the debt book.
+ */
 const MIX: Record<Kind, number[]> = {
-  normal: [64, 58, 54, 50, 48, 48, 52, 56],
-  big: [0, 3, 5, 6, 7, 8, 10, 12],
-  discount: [6, 7, 7, 7, 7, 7, 7, 7],
-  short: [8, 7, 6, 5, 5, 4, 3, 3],
-  kid: [10, 9, 8, 7, 6, 5, 3, 0],
-  trick: [5, 6, 7, 7, 7, 7, 7, 7],
-  coupon: [0, 0, 0, 4, 5, 6, 5, 4],
-  fake: [0, 4, 5, 6, 6, 6, 6, 5],
-  credit: [4, 5, 5, 5, 5, 5, 4, 3],
+  normal: [86, 80, 76, 72, 70, 68, 70, 76],
+  big: [0, 6, 9, 12, 14, 16, 18, 20],
+  discount: [0, 0, 0, 0, 0, 0, 0, 0],
+  short: [0, 0, 0, 0, 0, 0, 0, 0],
+  kid: [10, 9, 9, 9, 9, 9, 7, 2],
+  trick: [0, 0, 0, 0, 0, 0, 0, 0],
+  coupon: [0, 0, 0, 0, 0, 0, 0, 0],
+  fake: [0, 0, 0, 0, 0, 0, 0, 0],
+  credit: [4, 5, 6, 7, 7, 7, 5, 2],
   repay: [0, 0, 0, 0, 0, 0, 0, 0],
 };
 

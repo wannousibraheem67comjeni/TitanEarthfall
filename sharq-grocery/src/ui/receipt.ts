@@ -2,7 +2,7 @@
  * The receipt on the desk: thermal paper from the till printer. The header prints at
  * once; each line prints as the customer names that item; the totals, the VAT note,
  * and how they pay (the banknote they put down, a card, the debt book, a coupon) print
- * when they get to it. Then the two buttons below decide.
+ * when they get to it. Then the accept button below takes the payment.
  */
 import { clockText, dayName } from '../game/clock';
 import type { Persona } from '../game/customers';
@@ -118,28 +118,23 @@ export class Receipt {
   }
 }
 
-/** Accept / refuse, under the picture. */
+/** The accept button, under the picture. */
 export class DecisionBar {
   readonly el = h('div.decide');
   private readonly accept = h('button.accept', { type: 'button' }) as HTMLButtonElement;
-  private readonly reject = h('button.reject', { type: 'button' }, '❌ رفض') as HTMLButtonElement;
   private readonly patience = h('i');
-  private cb: ((accept: boolean) => void) | null = null;
+  private cb: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
-    this.el.append(h('div.patience', this.patience), h('div.row', this.reject, this.accept));
+    this.el.append(h('div.patience', this.patience), this.accept);
     this.el.hidden = true;
     parent.append(this.el);
-    this.accept.onclick = () => this.choose(true);
-    this.reject.onclick = () => this.choose(false);
+    this.accept.onclick = () => this.choose();
     window.addEventListener('keydown', (e) => {
       if (this.el.hidden || !this.cb || e.target instanceof HTMLInputElement) return;
       if (e.code === 'Enter' || e.code === 'KeyA') {
         e.preventDefault();
-        this.choose(true);
-      } else if (e.code === 'KeyR' || e.code === 'Backspace' || e.code === 'Delete') {
-        e.preventDefault();
-        this.choose(false);
+        this.choose();
       }
     });
   }
@@ -148,10 +143,9 @@ export class DecisionBar {
     return !this.el.hidden;
   }
 
-  show(cb: (accept: boolean) => void, onlyAccept = false): void {
+  show(cb: () => void, label = '✅ قبول'): void {
     this.cb = cb;
-    this.accept.textContent = onlyAccept ? '✅ استلم' : '✅ قبول';
-    this.reject.hidden = onlyAccept;
+    this.accept.textContent = label;
     this.el.hidden = false;
     this.setPatience(1);
   }
@@ -161,12 +155,12 @@ export class DecisionBar {
     this.patience.classList.toggle('low', frac < 0.3);
   }
 
-  private choose(accept: boolean): void {
+  private choose(): void {
     const cb = this.cb;
     if (!cb) return;
     this.cb = null;
     this.el.hidden = true;
-    cb(accept);
+    cb();
   }
 
   hide(): void {

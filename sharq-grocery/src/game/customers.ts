@@ -3,7 +3,7 @@
  * debt) and what they do. A customer comes along the pavement, pushes the door open,
  * walks the aisles taking things off the shelves into a basket, waits in line, sets
  * the goods down on the desk one by one, says the bill, pays or hands over a card,
- * and leaves with a bag, or without one if refused. Passers-by just walk past.
+ * and leaves with a bag. Passers-by just walk past.
  */
 import { Vector3, type Scene } from 'three';
 import { dampAngle } from '../core/math';
@@ -127,7 +127,7 @@ const PRESETS: Preset[] = [
         skin: pick(r, SKIN_ALL),
         primary: pick(r, ['#c46aa8', '#3f86b8', '#e0a526', '#4f7f73', '#e9dccb', '#ffffff']),
         secondary: pick(r, ['#2a2a2e', '#3b4a6b', '#6b5a43', '#7a2e4a']),
-        head: hijab ? 'hijab' : r.chance(0.5) ? 'longhair' : 'hair',
+        head: hijab ? 'hijab' : 'longhair',
         headColor: pick(r, ['#7a5aa6', '#c46aa8', '#3b4a6b', '#e9dccb', '#2b2d31']),
         hairColor: pick(r, HAIR),
         beard: 'none',
