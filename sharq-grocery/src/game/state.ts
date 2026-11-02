@@ -4,8 +4,7 @@
  * these methods, which emit events the interface listens to.
  */
 import { Emitter } from '../core/events';
-import { CLOSE, MINUTES_PER_SECOND, OPEN } from './clock';
-import { DAILY_INTEREST, LADDER, rank, STAGES } from './economy';
+import { LADDER, rank, STAGES } from './economy';
 
 import type { Look } from '../world/look';
 
@@ -40,28 +39,6 @@ export interface SaveState {
   time: number;
   stats: { customers: number; accepted: number; refused: number; caught: number; fooled: number; profit: number; interest: number; passive: number; repaid: number; lostDebts: number };
   bestRank: number;
-  /** Day number (1 = the first day) and the time of day in shop minutes. */
-  day: number;
-  minute: number;
-  today: DayStats;
-}
-
-/** One working day, for the closing-time summary. */
-export interface DayStats {
-  customers: number;
-  accepted: number;
-  refused: number;
-  caught: number;
-  sales: number;
-  profit: number;
-  passive: number;
-}
-
-const freshDay = (): DayStats => ({ customers: 0, accepted: 0, refused: 0, caught: 0, sales: 0, profit: 0, passive: 0 });
-
-export interface DaySummary extends DayStats {
-  day: number;
-  interest: number;
 }
 
 export interface StoreEvents {
@@ -88,9 +65,6 @@ export function newState(name: string, gender: Gender): SaveState {
     time: 0,
     stats: { customers: 0, accepted: 0, refused: 0, caught: 0, fooled: 0, profit: 0, interest: 0, passive: 0, repaid: 0, lostDebts: 0 },
     bestRank: 0,
-    day: 1,
-    minute: OPEN,
-    today: freshDay(),
   };
 }
 
@@ -108,10 +82,10 @@ export class Store extends Emitter<StoreEvents> {
     return STAGES[this.s.stage].next;
   }
 
-  /** Enough saved (counting the till) to move up a stage. */
+  /** Enough saved to move up a stage. */
   get canUpgrade(): boolean {
     const n = this.nextCost;
-    return n !== null && this.s.drawer + this.s.savings >= n;
+    return n !== null && this.s.savings >= n;
   }
 
   /** Money into (or out of) the till. */
@@ -123,7 +97,7 @@ export class Store extends Emitter<StoreEvents> {
     this.checkRank();
   }
 
-  /** The pink button: move the till into savings. Returns how much moved. */
+  /** The pink button: move everything in the till into savings. Returns how much moved. */
   save(): number {
     const moved = this.s.drawer;
     if (moved <= 0) return 0;
@@ -133,11 +107,10 @@ export class Store extends Emitter<StoreEvents> {
     return moved;
   }
 
-  /** Spend savings (and the till, if needed) on the next stage. */
+  /** Spend savings on the next stage; whatever is left over stays saved. */
   upgrade(): boolean {
     const cost = this.nextCost;
     if (cost === null || !this.canUpgrade) return false;
-    this.save();
     this.s.savings = Math.round((this.s.savings - cost) * 100) / 100;
     this.s.invested += cost;
     this.s.stage++;
@@ -147,42 +120,16 @@ export class Store extends Emitter<StoreEvents> {
     return true;
   }
 
-  get open(): boolean {
-    return this.s.minute >= OPEN && this.s.minute < CLOSE;
-  }
-
-  /** Shop time passes; branches and contracts bring their income by the hour. Returns that income. */
+  /** Time passes; branches and contracts bring their income every minute. Returns that income. */
   advance(seconds: number): number {
     this.s.time += seconds;
-    const minutes = seconds * MINUTES_PER_SECOND;
-    this.s.minute = Math.min(CLOSE, this.s.minute + minutes);
-    const passive = (STAGES[this.s.stage].passive / 60) * minutes;
+    const passive = (STAGES[this.s.stage].passive / 60) * seconds;
     if (passive > 0) {
       this.s.drawer += passive;
       this.s.stats.passive += passive;
-      this.s.today.passive += passive;
       this.checkRank();
     }
     return passive;
-  }
-
-  /** Closing time: the savings earn the day's interest. Returns the day's summary. */
-  closeDay(): DaySummary {
-    const interest = Math.round(this.s.savings * DAILY_INTEREST * 100) / 100;
-    if (interest > 0) {
-      this.s.savings += interest;
-      this.s.stats.interest += interest;
-      this.emit('money', { drawer: this.s.drawer, savings: this.s.savings, delta: interest, where: 'savings' });
-      this.checkRank();
-    }
-    return { ...this.s.today, day: this.s.day, interest };
-  }
-
-  /** The next morning. */
-  newDay(): void {
-    this.s.day++;
-    this.s.minute = OPEN;
-    this.s.today = freshDay();
   }
 
   stars(delta: number): void {
@@ -223,8 +170,7 @@ export class Store extends Emitter<StoreEvents> {
       if (!s || typeof s.name !== 'string' || typeof s.stage !== 'number') return null;
       const base = newState(s.name, s.gender === 'f' ? 'f' : 'm');
       const debts = (Array.isArray(s.debts) ? s.debts : []).map((d) => ({ ...d, gender: d.gender === 'f' ? 'f' : 'm', look: d.look && typeof d.look === 'object' ? d.look : undefined }) as Debt);
-      const minute = typeof s.minute === 'number' && s.minute >= OPEN && s.minute < CLOSE ? s.minute : OPEN;
-      return { ...base, ...s, debts, minute, today: { ...base.today, ...(s.today ?? {}) }, stats: { ...base.stats, ...(s.stats ?? {}) }, stage: Math.max(0, Math.min(STAGES.length - 1, s.stage)) } as SaveState;
+      return { ...base, ...s, debts, stats: { ...base.stats, ...(s.stats ?? {}) }, stage: Math.max(0, Math.min(STAGES.length - 1, s.stage)) } as SaveState;
     } catch {
       return null;
     }

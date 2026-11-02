@@ -163,14 +163,18 @@ button {
   background: linear-gradient(90deg, var(--gold), var(--pink-2));
 }
 
-.chip.clock b {
-  font: 600 17px var(--body);
-  direction: rtl;
+.chip.saved {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0;
+  min-width: 110px;
+  font-size: 12px;
 }
 
-.chip.clock span {
-  font-size: 12px;
-  opacity: 0.8;
+.chip.saved b {
+  font: 400 21px var(--display);
+  color: #ffb3d4;
 }
 
 .chip.drawer {
@@ -290,6 +294,7 @@ button {
 
 .subtitle {
   position: absolute;
+  z-index: 6;
   left: 50%;
   bottom: calc(118px + var(--safe-b));
   transform: translateX(-50%);
@@ -308,6 +313,10 @@ button {
   font: 600 13px var(--body);
   color: var(--pink-2);
   margin-bottom: 2px;
+}
+
+.hud:has(.decide:not([hidden])) .subtitle {
+  bottom: calc(196px + var(--safe-b));
 }
 
 .subtitle.me b {
@@ -405,6 +414,7 @@ button {
 }
 
 .decide {
+  order: -1;
   width: 100%;
   display: grid;
   gap: 6px;
@@ -460,7 +470,7 @@ button {
   left: 64px;
   top: calc(80px + var(--safe-t));
   width: 280px;
-  max-height: calc(100dvh - 310px - var(--safe-t) - var(--safe-b));
+  max-height: calc(100dvh - 380px - var(--safe-t) - var(--safe-b));
   overflow: auto;
   scrollbar-width: none;
   padding: 14px 14px 18px;
@@ -986,11 +996,19 @@ button {
     line-height: 1.25;
   }
   .chip.stage,
-  .chip.clock,
+  .chip.saved,
   .chip.drawer {
     flex: 1;
     min-width: 0;
     white-space: nowrap;
+  }
+  .chip.saved {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+  .chip.saved b {
+    font-size: 16px;
   }
   .chip.drawer {
     min-width: 0;
@@ -1001,12 +1019,6 @@ button {
   .chip.drawer b,
   .chip.worth b {
     font-size: 16px;
-  }
-  .chip.clock b {
-    font-size: 14px;
-  }
-  .chip.clock span {
-    font-size: 10.5px;
   }
   .chip.worth {
     order: 4;
@@ -1054,6 +1066,9 @@ button {
     bottom: calc(96px + var(--safe-b));
     padding: 6px 10px 8px;
   }
+  .hud:has(.decide:not([hidden])) .subtitle {
+    bottom: calc(168px + var(--safe-b));
+  }
   .subtitle p {
     font-size: 14.5px;
     line-height: 1.55;
@@ -1072,9 +1087,9 @@ button {
   .receipt {
     left: 6px;
     top: auto;
-    bottom: calc(205px + var(--safe-b));
+    bottom: calc(250px + var(--safe-b));
     width: min(46vw, 200px);
-    max-height: 34dvh;
+    max-height: 26dvh;
     padding: 8px 9px 12px;
     font-size: 10.5px;
     transform: rotate(-1deg);

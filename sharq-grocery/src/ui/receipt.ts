@@ -4,7 +4,6 @@
  * and how they pay (the banknote they put down, a card, the debt book, a coupon) print
  * when they get to it. Then the accept button below takes the payment.
  */
-import { clockText, dayName } from '../game/clock';
 import type { Persona } from '../game/customers';
 import { fmt, PRODUCTS, STAGES, type Bill } from '../game/economy';
 import { cashCanvas } from '../world/desk';
@@ -22,12 +21,12 @@ export class Receipt {
     parent.append(this.el);
   }
 
-  begin(bill: Bill, p: Persona, keeper: string, stage: number, day: number, minute: number): void {
+  begin(bill: Bill, p: Persona, keeper: string, stage: number): void {
     const head = h(
       'div.r-head',
       h('b', STAGES[stage].sign),
       h('small', 'فاتورة ضريبية مبسطة · TRN 100-245-873-900003'),
-      h('div.r-meta', h('span', `رقم ${counter++}`), h('span', `${dayName(day)} ${clockText(minute)}`)),
+      h('div.r-meta', h('span', `رقم ${counter++}`), h('span', 'نقطة البيع 1')),
       h('div.r-meta', h('span', `الكاشير: ${keeper}`), h('span', `الزبون: ${p.name}`)),
     );
     this.rows = bill.lines.map((l) => {
@@ -169,9 +168,9 @@ export class DecisionBar {
   }
 }
 
-/** The full price list, by stage, with the wholesale cost beside each price. */
+/** The full price list for what the shop stocks now. */
 export function priceList(stage: number): HTMLElement {
-  const table = h('table', h('tr', h('th', 'الغرض'), h('th', 'السعر'), h('th', 'سعر الجملة')));
-  for (const p of PRODUCTS.filter((x) => x.stage <= stage)) table.append(h('tr', h('td', `${p.icon} ${p.name}`), h('td.n', fmt(p.price)), h('td.n', fmt(p.cost))));
-  return h('div.prices', h('p.muted', 'الأسعار شاملة الضريبة. ربحك = سعر البيع − سعر الجملة.'), table);
+  const table = h('table', h('tr', h('th', 'الغرض'), h('th', 'السعر')));
+  for (const p of PRODUCTS.filter((x) => x.stage <= stage)) table.append(h('tr', h('td', `${p.icon} ${p.name}`), h('td.n', fmt(p.price))));
+  return h('div.prices', h('p.muted', 'الأسعار شاملة الضريبة. كل اللي يدفعه الزبون ينزل بالدرج.'), table);
 }

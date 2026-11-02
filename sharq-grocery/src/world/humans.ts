@@ -9,6 +9,7 @@
  * money, and move their lips while they talk.
  */
 import {
+  Bone,
   BufferGeometry,
   CanvasTexture,
   CapsuleGeometry,
@@ -20,13 +21,17 @@ import {
   Group,
   LatheGeometry,
   type Material,
+  Matrix4,
   Mesh,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
+  Skeleton,
+  SkinnedMesh,
   SphereGeometry,
   TorusGeometry,
   TubeGeometry,
+  Uint16BufferAttribute,
   Vector2,
   Vector3,
 } from 'three';
@@ -38,26 +43,10 @@ import type { Look } from './look';
 // Materials
 // ---------------------------------------------------------------------------
 
-const skinVC = () =>
-  cached('skinVC', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.58, sheen: 0.22, sheenRoughness: 0.7, sheenColor: new Color('#ffe2d4') }));
-
-function skinPlain(color: string): MeshPhysicalMaterial {
-  return cached(`skin${color}`, () => new MeshPhysicalMaterial({ color: new Color(color), roughness: 0.58, sheen: 0.22, sheenRoughness: 0.7, sheenColor: new Color('#ffe2d4') }));
-}
-
-function cloth(color: string, rough = 0.85, sheen = 0.25, side = false): MeshPhysicalMaterial {
-  return cached(`cloth${color}${rough}${side}`, () => {
-    const m = new MeshPhysicalMaterial({ color: new Color(color), roughness: rough, sheen, sheenRoughness: 0.8, sheenColor: new Color(color).lerp(new Color('#ffffff'), 0.3) });
-    if (side) m.side = DoubleSide;
-    return m;
-  });
-}
 
 function solid(color: string, rough = 0.6, metal = 0): MeshStandardMaterial {
   return cached(`hsolid${color}${rough}${metal}`, () => new MeshStandardMaterial({ color: new Color(color), roughness: rough, metalness: metal }));
 }
-
-const hairMat = (color: string) => cached(`hair${color}`, () => new MeshStandardMaterial({ color: new Color(color), roughness: 0.78 }));
 
 function irisTexture(color: string): CanvasTexture {
   return cached(`iris${color}`, () => {
@@ -172,8 +161,8 @@ function faceZ(x: number, y: number): number {
 }
 
 /** Sculpt a sphere into a head: jaw and chin, eye sockets, brow, cheekbones, fuller skull. */
-function sculptHead(female: boolean, child: boolean, jaw: number): BufferGeometry {
-  const g = new SphereGeometry(1, 40, 30);
+function sculptHead(female: boolean, child: boolean, jaw: number, lite = false): BufferGeometry {
+  const g = new SphereGeometry(1, lite ? 20 : 40, lite ? 15 : 30);
   const pos = g.attributes.position;
   const v = new Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -291,9 +280,9 @@ function headShell(thetaTop: (phi: number) => number, thetaBottom: (phi: number)
  * Cloth falling from the head over the shoulders (ghutra, shayla): a sleeve of fabric
  * open at the face, spreading from the temples to the shoulders and down the chest.
  */
-function headDrape(opts: { open: (v: number) => number; top: number; bottom: number; spread: number; tight: number; folds: number }): BufferGeometry {
-  const segU = 36;
-  const segV = 16;
+function headDrape(opts: { open: (v: number) => number; top: number; bottom: number; spread: number; tight: number; folds: number }, lite = false): BufferGeometry {
+  const segU = lite ? 18 : 36;
+  const segV = lite ? 8 : 16;
   const positions: number[] = [];
   const uvs: number[] = [];
   const index: number[] = [];
@@ -390,7 +379,37 @@ export interface Pose {
   mood: 'neutral' | 'happy' | 'sad' | 'cross';
 }
 
+/** How a part is painted: a shared material by kind, tinted per vertex; or a material of its own. */
+type Paint = { k: 'skin' | 'cloth' | 'clothDS' | 'silk' | 'silkDS' | 'matte' | 'gloss'; c: string | null } | { k: 'own'; m: Material };
+
+const C = (c: string): Paint => ({ k: 'cloth', c });
+const CD = (c: string): Paint => ({ k: 'clothDS', c });
+const SILK = (c: string, ds = false): Paint => ({ k: ds ? 'silkDS' : 'silk', c });
+const M = (c: string, rough = 0.7): Paint => ({ k: rough < 0.45 ? 'gloss' : 'matte', c });
+const OWN = (m: Material): Paint => ({ k: 'own', m });
+
+/** The few materials every person shares; colours ride on the vertices. */
+const SHARED = {
+  skin: () => cached('pSkin', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.58, sheen: 0.22, sheenRoughness: 0.7, sheenColor: new Color('#ffe2d4') })),
+  cloth: () => cached('pCloth', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.84, sheen: 0.3, sheenRoughness: 0.8, sheenColor: new Color('#f4f0ea') })),
+  clothDS: () => cached('pClothDS', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.84, sheen: 0.3, sheenRoughness: 0.8, sheenColor: new Color('#f4f0ea'), side: DoubleSide })),
+  silk: () => cached('pSilk', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.66, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new Color('#8a8496') })),
+  silkDS: () => cached('pSilkDS', () => new MeshPhysicalMaterial({ vertexColors: true, roughness: 0.66, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new Color('#8a8496'), side: DoubleSide })),
+  matte: () => cached('pMatte', () => new MeshStandardMaterial({ vertexColors: true, roughness: 0.75 })),
+  gloss: () => cached('pGloss', () => new MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.1 })),
+};
+
+interface Piece {
+  bone: Bone;
+  geo: BufferGeometry;
+  paint: Paint;
+  /** Custom skinning (the robe); otherwise rigid to `bone`. */
+  weights?: (p: Vector3) => [Bone, number][];
+}
+
 const tmpV = new Vector3();
+const tmpP = new Vector3();
+const IDENT = new Matrix4();
 
 export class Human {
   readonly root = new Group();
@@ -398,24 +417,25 @@ export class Human {
   readonly handR = new Object3D();
   readonly handL = new Object3D();
   readonly pose: Pose = { speed: 0, talking: false, lookAt: null, reach: 0, reachY: 1, give: 0, mood: 'neutral' };
-  private readonly hips = new Group();
-  private readonly spine = new Group();
-  private readonly chest = new Group();
-  private readonly neck = new Group();
-  private readonly head = new Group();
-  private readonly shoulder: [Group, Group] = [new Group(), new Group()];
-  private readonly elbow: [Group, Group] = [new Group(), new Group()];
-  private readonly wrist: [Group, Group] = [new Group(), new Group()];
-  private readonly hip: [Group, Group] = [new Group(), new Group()];
-  private readonly knee: [Group, Group] = [new Group(), new Group()];
-  private readonly ankle: [Group, Group] = [new Group(), new Group()];
-  private readonly eyes: Group[] = [];
-  private readonly lids: Group[] = [];
-  private readonly brows: Mesh[] = [];
-  private mouth!: Mesh;
-  private lowerLip!: Mesh;
-  private robe: { mesh: Mesh; base: Float32Array } | null = null;
-  private tassel: Mesh | null = null;
+  private readonly hips = new Bone();
+  private readonly spine = new Bone();
+  private readonly chest = new Bone();
+  private readonly neck = new Bone();
+  private readonly head = new Bone();
+  private readonly shoulder: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly elbow: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly wrist: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly hip: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly knee: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly ankle: [Bone, Bone] = [new Bone(), new Bone()];
+  private readonly eyes: Bone[] = [];
+  private readonly lids: Bone[] = [];
+  private readonly brows: Bone[] = [];
+  private mouth: Bone | null = null;
+  private lowerLip: Bone | null = null;
+  private tassel: Bone | null = null;
+  private readonly pieces: Piece[] = [];
+  private readonly skinned: SkinnedMesh[] = [];
   private phase = Math.random() * 6;
   private t = Math.random() * 10;
   private blinkT = 1 + Math.random() * 3;
@@ -432,41 +452,122 @@ export class Human {
   private readonly child: boolean;
   private readonly female: boolean;
   private carry: Object3D | null = null;
-  private readonly meshes: Mesh[] = [];
+  private readonly extras: Mesh[] = [];
 
-  constructor(readonly look: Look) {
+  /** `full` for people who come up to the desk; `lite` (no face detail, fewer polygons) for the crowd. */
+  constructor(
+    readonly look: Look,
+    readonly detail: 'full' | 'lite' = 'full',
+  ) {
     this.old = look.build === 'old';
     this.child = look.build === 'boy' || look.build === 'girl';
     this.female = look.build === 'woman' || look.build === 'girl';
     this.height = look.height;
-    // Built at 1.75 m and scaled; children get a larger head and shorter legs.
-    const scale = look.height / (this.child ? 1.62 : 1.75);
-    this.root.scale.setScalar(scale);
     this.root.add(this.hips);
     this.build();
+    this.bind();
+    // Built at 1.75 m and scaled; children get a larger head and shorter legs.
+    this.root.scale.setScalar(look.height / (this.child ? 1.62 : 1.75));
   }
 
-  private add(parent: Object3D, geo: BufferGeometry, material: Material, x = 0, y = 0, z = 0, cast = true): Mesh {
-    const m = new Mesh(geo, material);
-    m.position.set(x, y, z);
-    m.castShadow = cast;
-    m.receiveShadow = true;
-    parent.add(m);
-    this.meshes.push(m);
-    return m;
+  /** A joint under `parent` at a local offset. */
+  private joint(parent: Object3D, x = 0, y = 0, z = 0): Bone {
+    const b = new Bone();
+    b.position.set(x, y, z);
+    parent.add(b);
+    return b;
+  }
+
+  private add(bone: Bone, geo: BufferGeometry, paint: Paint, x = 0, y = 0, z = 0): void {
+    if (x || y || z) geo.translate(x, y, z);
+    this.pieces.push({ bone, geo, paint });
+  }
+
+  /** Turn the parts into one skinned mesh per material, all driven by the same skeleton. */
+  private bind(): void {
+    this.root.updateMatrixWorld(true);
+    const bones: Bone[] = [];
+    this.root.traverse((o) => {
+      if ((o as Bone).isBone) bones.push(o as Bone);
+    });
+    const index = new Map(bones.map((b, i) => [b, i]));
+    const buckets = new Map<Material, BufferGeometry[]>();
+    const tint = new Color();
+    for (const piece of this.pieces) {
+      const material = piece.paint.k === 'own' ? piece.paint.m : SHARED[piece.paint.k]();
+      let g = piece.geo.index ? piece.geo.toNonIndexed() : piece.geo;
+      const own = piece.paint.k === 'own';
+      const keepUv = own && !!(material as MeshStandardMaterial).map;
+      const keepColor = !own || (material as MeshStandardMaterial).vertexColors;
+      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && !(k === 'uv' && keepUv) && !(k === 'color' && keepColor)) g.deleteAttribute(k);
+      g.clearGroups();
+      const n = g.attributes.position.count;
+      const paintColor = piece.paint.k === 'own' ? null : piece.paint.c;
+      if (!own && (paintColor !== null || !g.getAttribute('color'))) {
+        tint.set(paintColor ?? '#ffffff');
+        const col = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) col.set([tint.r, tint.g, tint.b], i * 3);
+        g.setAttribute('color', new Float32BufferAttribute(col, 3));
+      }
+      // Skin weights, computed in the part's own joint space, then the part moves into body space.
+      const si = new Uint16Array(n * 4);
+      const sw = new Float32Array(n * 4);
+      const pos = g.attributes.position;
+      for (let i = 0; i < n; i++) {
+        if (piece.weights) {
+          tmpP.fromBufferAttribute(pos, i);
+          piece.weights(tmpP).forEach(([b, w], j) => {
+            si[i * 4 + j] = index.get(b) ?? 0;
+            sw[i * 4 + j] = w;
+          });
+        } else {
+          si[i * 4] = index.get(piece.bone) ?? 0;
+          sw[i * 4] = 1;
+        }
+      }
+      g.setAttribute('skinIndex', new Uint16BufferAttribute(si, 4));
+      g.setAttribute('skinWeight', new Float32BufferAttribute(sw, 4));
+      g = g.applyMatrix4(piece.bone.matrixWorld);
+      let list = buckets.get(material);
+      if (!list) buckets.set(material, (list = []));
+      list.push(g);
+    }
+    const skeleton = new Skeleton(bones);
+    for (const [material, list] of buckets) {
+      const merged = mergeGeometries(list, false);
+      if (!merged) continue;
+      for (const g of list) g.dispose();
+      const mesh = new SkinnedMesh(merged, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      this.root.add(mesh);
+      mesh.bind(skeleton, IDENT);
+      this.skinned.push(mesh);
+    }
+    this.pieces.length = 0;
+  }
+
+  setShadows(on: boolean): void {
+    for (const m of this.skinned) m.castShadow = on;
   }
 
   private build(): void {
     const L = this.look;
     const fem = this.female;
     const kid = this.child;
+    const lite = this.detail === 'lite';
+    const seg = lite ? 0.55 : 1;
+    const S = (n: number) => Math.max(5, Math.round(n * seg));
     const robe = L.outfit === 'kandura' || L.outfit === 'abaya';
+    const abaya = L.outfit === 'abaya';
     const wide = 1 + L.weight * 0.22;
     const skinC = new Color(L.skin);
-    const top = L.outfit === 'abaya' ? '#141216' : L.primary;
+    const top = abaya ? '#141216' : L.primary;
     const bottom = L.outfit === 'uniform' ? L.primary : L.secondary;
-    const topMat = robe ? cloth(top, L.outfit === 'abaya' ? 0.7 : 0.82, L.outfit === 'abaya' ? 0.6 : 0.3) : cloth(top);
-    const bottomMat = cloth(bottom, 0.8);
+    const topPaint = abaya ? SILK(top) : C(top);
+    const bottomPaint = C(bottom);
+    const skin: Paint = { k: 'skin', c: L.skin };
     const legLen = kid ? 0.38 : 0.42;
 
     // ------------------------------------------------------------- skeleton
@@ -530,13 +631,15 @@ export class Human {
           [0.095, 0.475],
           [0.056, 0.495],
         ];
-    const torso = new LatheGeometry(
-      torsoProfile.map(([r, y]) => new Vector2(r * wide, y)),
-      28,
-    );
-    torso.scale(1, 1, 0.62 + L.weight * 0.08);
-    if (!robe) this.add(this.spine, torso, topMat, 0, 0.02, 0);
-    // Pelvis / trousers top.
+    const torso = () => {
+      const g = new LatheGeometry(
+        torsoProfile.map(([r, y]) => new Vector2(r * wide, y)),
+        S(28),
+      );
+      g.scale(1, 1, 0.62 + L.weight * 0.08);
+      return g;
+    };
+    if (!robe) this.add(this.spine, torso(), topPaint, 0, 0.02, 0);
     if (!robe && L.outfit !== 'dress') {
       const pelvis = new LatheGeometry(
         (
@@ -548,32 +651,24 @@ export class Human {
             [0.16, 0.08],
           ] as [number, number][]
         ).map(([r, y]) => new Vector2(r * wide, y)),
-        24,
+        S(24),
       );
       pelvis.scale(1, 1, 0.68);
-      this.add(this.hips, pelvis, bottomMat);
-      // A belt.
-      if (L.outfit === 'shirt') this.add(this.hips, new CylinderGeometry(0.164 * wide, 0.164 * wide, 0.035, 24, 1, true).scale(1, 1, 0.69), solid('#2a2420', 0.4), 0, 0.06, 0);
+      this.add(this.hips, pelvis, bottomPaint);
+      if (L.outfit === 'shirt') this.add(this.hips, new CylinderGeometry(0.164 * wide, 0.164 * wide, 0.035, S(24), 1, true).scale(1, 1, 0.69), M('#2a2420', 0.4), 0, 0.06, 0);
     }
-    // Neck.
-    this.add(this.neck, new CylinderGeometry(0.048, 0.055, 0.14, 14).translate(0, 0.02, 0), skinPlain(L.skin));
+    this.add(this.neck, new CylinderGeometry(0.048, 0.055, 0.14, S(14)).translate(0, 0.02, 0), skin);
 
-    // Shirt details: collar and a placket of buttons.
-    if (L.outfit === 'shirt' || L.outfit === 'school' || L.outfit === 'uniform') {
-      this.add(this.chest, new TorusGeometry(0.062, 0.014, 6, 18, Math.PI * 1.4).rotateX(Math.PI / 2).rotateY(Math.PI * 0.8), cloth(L.outfit === 'school' ? '#ffffff' : top), 0, 0.2, 0.0);
-      this.add(this.chest, new CylinderGeometry(0.006, 0.006, 0.36, 4).translate(0, 0.03, 0), solid('#f2f2f0', 0.4), 0, 0, 0.112);
+    if (!lite && (L.outfit === 'shirt' || L.outfit === 'school' || L.outfit === 'uniform')) {
+      this.add(this.chest, new TorusGeometry(0.062, 0.014, 6, 18, Math.PI * 1.4).rotateX(Math.PI / 2).rotateY(Math.PI * 0.8), C(L.outfit === 'school' ? '#ffffff' : top), 0, 0.2, 0.0);
+      this.add(this.chest, new CylinderGeometry(0.006, 0.006, 0.36, 4).translate(0, 0.03, 0), M('#f2f2f0', 0.4), 0, 0, 0.112);
     }
-    if (L.outfit === 'uniform') {
-      // Reflective tape across chest and back.
-      this.add(this.spine, new CylinderGeometry(0.175 * wide, 0.175 * wide, 0.035, 28, 1, true).scale(1, 1, 0.66), solid('#d8dde0', 0.25, 0.4), 0, 0.3, 0);
-    }
-    if (L.backpack) this.add(this.chest, new CapsuleGeometry(0.11, 0.14, 4, 10).scale(1, 1, 0.55), cloth('#2f6fb0', 0.7), 0, -0.05, -0.15);
+    if (L.outfit === 'uniform') this.add(this.spine, new CylinderGeometry(0.175 * wide, 0.175 * wide, 0.035, S(28), 1, true).scale(1, 1, 0.66), M('#d8dde0', 0.25), 0, 0.3, 0);
+    if (L.backpack) this.add(this.chest, new CapsuleGeometry(0.11, 0.14, 4, S(10)).scale(1, 1, 0.55), C('#2f6fb0'), 0, -0.05, -0.15);
 
     // ------------------------------------------------------------- robe (kandura / abaya / long skirt)
     if (robe || L.outfit === 'dress') {
-      const abaya = L.outfit === 'abaya';
       const from = L.outfit === 'dress' ? 0.05 : 0.86;
-      const prof: [number, number][] = [];
       const hem = abaya ? 0.27 : L.outfit === 'dress' ? 0.25 : 0.205;
       const pts: [number, number][] = [
         [0.05, -0.86],
@@ -589,10 +684,9 @@ export class Human {
         [0.09, 0.55],
         [0.056, 0.57],
       ];
-      for (const [r, y] of pts) if (y <= from) prof.push([r, y]);
       const g = new LatheGeometry(
-        prof.map(([r, y]) => new Vector2(r, y)),
-        40,
+        pts.filter(([, y]) => y <= from).map(([r, y]) => new Vector2(r, y)),
+        S(40),
       );
       g.scale(1, 1, 0.66 + L.weight * 0.08);
       // Fabric folds running down from the waist.
@@ -607,107 +701,131 @@ export class Human {
         }
       }
       g.computeVertexNormals();
-      const mesh = this.add(this.hips, g, L.outfit === 'dress' ? bottomMat : topMat);
-      this.robe = { mesh, base: Float32Array.from(g.attributes.position.array as Float32Array) };
-      if (L.outfit === 'dress') this.add(this.spine, torso, topMat, 0, 0.02, 0);
+      // The skirt swings with the thighs; the top follows the spine and chest.
+      const hips = this.hips;
+      const spine = this.spine;
+      const chest = this.chest;
+      const [hipL, hipR] = this.hip;
+      this.pieces.push({
+        bone: hips,
+        geo: g,
+        paint: L.outfit === 'dress' ? bottomPaint : topPaint,
+        weights: (p) => {
+          if (p.y < 0) {
+            const k = Math.min(0.8, -p.y * 1.1) * smooth(0, 0.25, -p.y);
+            const side = smooth(-0.08, 0.1, p.x);
+            return [
+              [hips, 1 - k],
+              [hipL, k * side],
+              [hipR, k * (1 - side)],
+            ];
+          }
+          const wc = smooth(0.3, 0.42, p.y);
+          const ws = smooth(0.0, 0.15, p.y) * (1 - wc);
+          return [
+            [hips, 1 - wc - ws],
+            [spine, ws],
+            [chest, wc],
+          ];
+        },
+      });
+      if (L.outfit === 'dress') this.add(this.spine, torso(), topPaint, 0, 0.02, 0);
       if (L.outfit === 'kandura') {
-        // Collar band and the tarboosh tassel hanging from it.
-        this.add(this.chest, new CylinderGeometry(0.058, 0.064, 0.035, 18, 1, true), cloth(top, 0.7, 0.3, true), 0, 0.225, 0.005);
-        this.tassel = this.add(this.chest, new CylinderGeometry(0.006, 0.004, 0.24, 6).translate(0, -0.12, 0), cloth(top, 0.6), 0.012, 0.2, 0.1);
+        this.add(this.chest, new CylinderGeometry(0.058, 0.064, 0.035, S(18), 1, true), CD(top), 0, 0.225, 0.005);
+        if (!lite) {
+          this.tassel = this.joint(this.chest, 0.012, 0.2, 0.1);
+          this.add(this.tassel, new CylinderGeometry(0.006, 0.004, 0.24, 6).translate(0, -0.12, 0), C(top));
+        }
       }
     }
 
     // ------------------------------------------------------------- arms and hands
     const sleeveLong = L.outfit !== 'tshirt' && !(L.outfit === 'school' && !fem);
     for (const s of [0, 1] as const) {
-      const sleeveMat = robe ? topMat : sleeveLong ? topMat : topMat;
-      this.add(this.shoulder[s], new SphereGeometry(0.047 * wide, 14, 10), topMat, 0, -0.02, 0);
-      this.add(this.shoulder[s], limb(0.29, (fem ? 0.043 : 0.047) * wide, 0.039 * wide), sleeveMat);
-      const foreMat = robe || sleeveLong ? topMat : skinPlain(L.skin);
-      const fore = L.outfit === 'abaya' ? limb(0.25, 0.045, 0.075) : limb(0.25, 0.041 * wide, 0.033);
-      this.add(this.elbow[s], fore, foreMat);
-      if (!robe && !sleeveLong) this.add(this.shoulder[s], new CylinderGeometry(0.058 * wide, 0.055 * wide, 0.14, 14, 1, true).translate(0, -0.07, 0), topMat);
-      this.add(this.wrist[s], handGeometry(s === 1), skinPlain(L.skin), 0, 0.01, 0);
+      this.add(this.shoulder[s], new SphereGeometry(0.047 * wide, S(14), S(10)), topPaint, 0, -0.02, 0);
+      this.add(this.shoulder[s], limb(0.29, (fem ? 0.043 : 0.047) * wide, 0.039 * wide, S(14)), topPaint);
+      const fore = abaya ? limb(0.25, 0.045, 0.075, S(14)) : limb(0.25, 0.041 * wide, 0.033, S(14));
+      this.add(this.elbow[s], fore, robe || sleeveLong ? topPaint : skin);
+      if (!robe && !sleeveLong) this.add(this.shoulder[s], new CylinderGeometry(0.058 * wide, 0.055 * wide, 0.14, S(14), 1, true).translate(0, -0.07, 0), topPaint);
+      this.add(this.wrist[s], lite ? new SphereGeometry(1, 8, 6).scale(0.036, 0.07, 0.018).translate(0, -0.06, 0) : handGeometry(s === 1), skin, 0, 0.01, 0);
     }
 
     // ------------------------------------------------------------- legs and feet
     for (const s of [0, 1] as const) {
-      const legMat = robe ? cloth(L.outfit === 'abaya' ? '#141216' : '#efeeea', 0.85) : L.outfit === 'dress' ? skinPlain(L.skin) : bottomMat;
-      this.add(this.hip[s], limb(legLen, 0.075 * wide, 0.055 * wide), legMat);
-      this.add(this.knee[s], limb(legLen, 0.054 * wide, 0.04), legMat);
+      const legPaint = robe ? C(abaya ? '#141216' : '#efeeea') : L.outfit === 'dress' ? skin : bottomPaint;
+      this.add(this.hip[s], limb(legLen, 0.075 * wide, 0.055 * wide, S(14)), legPaint);
+      this.add(this.knee[s], limb(legLen, 0.054 * wide, 0.04, S(14)), legPaint);
       const ft = this.ankle[s];
       if (L.shoes === 'sandals') {
-        this.add(ft, new CapsuleGeometry(0.035, 0.15, 4, 8).rotateX(Math.PI / 2).scale(1, 0.55, 1), skinPlain(L.skin), 0, -0.03, 0.05);
-        this.add(ft, new CylinderGeometry(0.05, 0.05, 0.016, 12).scale(1, 1, 2.6).translate(0, -0.052, 0.045), solid('#5a3a22', 0.7));
-        this.add(ft, new TorusGeometry(0.036, 0.008, 4, 12, Math.PI).rotateY(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, -0.03, 0.07), solid('#4a2e1a', 0.6));
+        this.add(ft, new CapsuleGeometry(0.035, 0.15, 4, 8).rotateX(Math.PI / 2).scale(1, 0.55, 1), skin, 0, -0.03, 0.05);
+        this.add(ft, new CylinderGeometry(0.05, 0.05, 0.016, 12).scale(1, 1, 2.6).translate(0, -0.052, 0.045), M('#5a3a22', 0.7));
+        if (!lite) this.add(ft, new TorusGeometry(0.036, 0.008, 4, 12, Math.PI).rotateY(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, -0.03, 0.07), M('#4a2e1a', 0.6));
       } else {
-        const shoe = L.shoes === 'sneakers' ? solid(fem ? '#f2f2f2' : '#e9e9e9', 0.6) : solid('#1c1a18', 0.3, 0.1);
-        this.add(ft, new CapsuleGeometry(0.045, 0.16, 4, 10).rotateX(Math.PI / 2).scale(1, 0.62, 1), shoe, 0, -0.035, 0.05);
-        if (L.shoes === 'sneakers') this.add(ft, new CylinderGeometry(0.048, 0.048, 0.02, 12).scale(1, 1, 2.5).translate(0, -0.06, 0.05), solid('#cfcfcf', 0.8));
+        this.add(ft, new CapsuleGeometry(0.045, 0.16, 4, 10).rotateX(Math.PI / 2).scale(1, 0.62, 1), L.shoes === 'sneakers' ? M(fem ? '#f2f2f2' : '#e9e9e9', 0.6) : M('#1c1a18', 0.3), 0, -0.035, 0.05);
+        if (L.shoes === 'sneakers') this.add(ft, new CylinderGeometry(0.048, 0.048, 0.02, 12).scale(1, 1, 2.5).translate(0, -0.06, 0.05), M('#cfcfcf', 0.8));
       }
     }
 
     // ------------------------------------------------------------- head and face
     const male = !fem;
-    const headG = sculptHead(fem, kid, L.weight);
+    const headG = sculptHead(fem, kid, L.weight, lite);
     paintHead(headG, skinC, male && !kid, L.beard === 'none' || L.beard === 'moustache');
     const face: BufferGeometry[] = [headG];
-    // Nose.
     const nz = faceZ(0, -0.01);
     face.push(tint(new SphereGeometry(1, 12, 10).scale(fem ? 0.0062 : 0.0072, 0.024, 0.0085).rotateX(-0.36).translate(0, -0.005, nz + 0.0035), skinC));
     face.push(tint(new SphereGeometry(fem ? 0.0074 : 0.0086, 12, 10).scale(1, 0.9, 1).translate(0, -0.024, faceZ(0, -0.024) + 0.0105), skinC));
-    for (const sx of [-1, 1]) face.push(tint(new SphereGeometry(fem ? 0.0052 : 0.006, 10, 8).scale(1, 0.85, 1).translate(sx * (fem ? 0.0092 : 0.0102), -0.0265, faceZ(0.0102, -0.0265) + 0.0042), skinC.clone().multiplyScalar(0.96)));
-    // Ears.
+    if (!lite) for (const sx of [-1, 1]) face.push(tint(new SphereGeometry(fem ? 0.0052 : 0.006, 10, 8).scale(1, 0.85, 1).translate(sx * (fem ? 0.0092 : 0.0102), -0.0265, faceZ(0.0102, -0.0265) + 0.0042), skinC.clone().multiplyScalar(0.96)));
     for (const sx of [-1, 1]) face.push(tint(new SphereGeometry(1, 10, 8).scale(0.009, 0.03, 0.019).rotateY(sx * 0.4).translate(sx * (HA - 0.002), 0.0, -0.01), skinC.clone().multiplyScalar(0.96)));
-    this.add(this.head, merge(face), skinVC());
+    this.add(this.head, merge(face), { k: 'skin', c: null });
 
-    // Eyes: whites, irises that turn, lids that blink.
-    const irisColor = ['#4a2f1c', '#3a2416', '#5c3b22', '#2b1d12', '#6a5a3a'][Math.floor(Math.abs(Math.sin(L.height * 97)) * 5)];
-    for (const sx of [-1, 1]) {
-      const ex = sx * 0.031;
-      const ey = 0.012;
-      const ez = faceZ(ex, ey) - 0.013;
-      const eye = new Group();
-      eye.position.set(ex, ey, ez);
-      this.head.add(eye);
-      const white = new Mesh(new SphereGeometry(0.0118, 16, 12), solid('#f1ede6', 0.12));
-      const iris = new Mesh(capUV(new SphereGeometry(0.0119, 16, 12, 0, Math.PI * 2, 0, 0.55), 0.0119, 0.55).rotateX(Math.PI / 2), new MeshStandardMaterial({ map: irisTexture(irisColor), roughness: 0.08 }));
-      eye.add(white, iris);
-      this.eyes.push(eye);
-      const lid = new Group();
-      lid.position.copy(eye.position);
-      this.head.add(lid);
-      const upper = new Mesh(new SphereGeometry(0.0127, 18, 8, 0, Math.PI * 2, 0, 1.12), skinPlain(L.skin));
-      const lash = new Mesh(new TorusGeometry(0.0115, fem ? 0.0011 : 0.0008, 4, 24).rotateX(Math.PI / 2).translate(0, 0.0055, 0), solid('#120c0a', 0.6));
-      upper.add(lash);
-      lid.add(upper);
-      lid.rotation.x = -0.1;
-      this.lids.push(lid);
-      const lower = new Mesh(new SphereGeometry(0.0125, 16, 6, 0, Math.PI * 2, Math.PI - 0.82, 0.82), skinPlain(L.skin));
-      lower.position.copy(eye.position);
-      this.head.add(lower);
-      // Brow.
-      const by = 0.036;
-      const curve = new CatmullRomCurve3([
-        new Vector3(sx * 0.011, by - 0.003, faceZ(0.011, by) + 0.0025),
-        new Vector3(sx * 0.024, by + (fem ? 0.005 : 0.003), faceZ(0.024, by) + 0.003),
-        new Vector3(sx * 0.038, by + (fem ? 0.006 : 0.003), faceZ(0.038, by) + 0.0025),
-        new Vector3(sx * 0.05, by - 0.002, faceZ(0.05, by) + 0.0015),
-      ]);
-      const brow = this.add(this.head, new TubeGeometry(curve, 10, fem ? 0.0017 : 0.0024, 5, false).scale(1, 0.8, 1), hairMat(L.hairColor));
-      this.brows.push(brow);
-    }
-    // Lips and the mouth between them.
-    const lipC = skinC.clone().lerp(new Color('#a85a52'), fem ? 0.42 : 0.24).getStyle();
-    const lipMat = cloth(lipC, 0.45, 0.2);
     const my = -0.051;
     const mz = faceZ(0, my);
-    this.mouth = this.add(this.head, new SphereGeometry(1, 12, 8).scale(0.016, 0.0022, 0.004), solid('#2a0e0e', 0.9), 0, my, mz - 0.0012, false);
-    this.add(this.head, new CapsuleGeometry(0.0033, 0.03, 4, 10).rotateZ(Math.PI / 2).scale(1, 1, 0.55), lipMat, 0, my + 0.0038, mz + 0.0008, false);
-    this.lowerLip = this.add(this.head, new CapsuleGeometry(fem ? 0.0046 : 0.0042, 0.026, 4, 10).rotateZ(Math.PI / 2).scale(1, 1, 0.6), lipMat, 0, my - 0.0045, mz + 0.0002, false);
+    if (lite) {
+      // From across the shop: dark eyes and a mouth line are enough.
+      for (const sx of [-1, 1]) this.add(this.head, new SphereGeometry(0.0085, 8, 6), M('#2a1d14', 0.3), sx * 0.031, 0.012, faceZ(0.031, 0.012) - 0.004);
+      this.add(this.head, new SphereGeometry(1, 8, 6).scale(0.016, 0.003, 0.004), M(skinC.clone().lerp(new Color('#7a3a33'), 0.5).getStyle(), 0.6), 0, my, mz);
+      for (const sx of [-1, 1]) this.add(this.head, new CylinderGeometry(0.0025, 0.0025, 0.03, 5).rotateZ(Math.PI / 2 + sx * 0.12), M(L.hairColor, 0.8), sx * 0.03, 0.037, faceZ(0.03, 0.037) + 0.002);
+    } else {
+      // Eyes: whites, irises that turn, lids that blink.
+      const irisColor = ['#4a2f1c', '#3a2416', '#5c3b22', '#2b1d12', '#6a5a3a'][Math.floor(Math.abs(Math.sin(L.height * 97)) * 5)];
+      const irisMat = cached(`irisMat${irisColor}`, () => new MeshStandardMaterial({ map: irisTexture(irisColor), roughness: 0.08 }));
+      for (const sx of [-1, 1]) {
+        const ex = sx * 0.031;
+        const ey = 0.012;
+        const ez = faceZ(ex, ey) - 0.013;
+        const eye = this.joint(this.head, ex, ey, ez);
+        this.add(eye, new SphereGeometry(0.0118, 16, 12), M('#f1ede6', 0.12));
+        this.add(eye, capUV(new SphereGeometry(0.0119, 16, 12, 0, Math.PI * 2, 0, 0.55), 0.0119, 0.55).rotateX(Math.PI / 2), OWN(irisMat));
+        this.eyes.push(eye);
+        const lid = this.joint(this.head, ex, ey, ez);
+        lid.rotation.x = -0.1;
+        this.add(lid, new SphereGeometry(0.0127, 18, 8, 0, Math.PI * 2, 0, 1.12), skin);
+        this.add(lid, new TorusGeometry(0.0115, fem ? 0.0011 : 0.0008, 4, 24).rotateX(Math.PI / 2).translate(0, 0.0055, 0), M('#120c0a', 0.6));
+        this.lids.push(lid);
+        this.add(this.head, new SphereGeometry(0.0125, 16, 6, 0, Math.PI * 2, Math.PI - 0.82, 0.82), skin, ex, ey, ez);
+        const by = 0.036;
+        const curve = new CatmullRomCurve3([
+          new Vector3(sx * 0.011, by - 0.003, faceZ(0.011, by) + 0.0025),
+          new Vector3(sx * 0.024, by + (fem ? 0.005 : 0.003), faceZ(0.024, by) + 0.003),
+          new Vector3(sx * 0.038, by + (fem ? 0.006 : 0.003), faceZ(0.038, by) + 0.0025),
+          new Vector3(sx * 0.05, by - 0.002, faceZ(0.05, by) + 0.0015),
+        ]);
+        // Each brow hangs on its own joint at its middle, so it can frown.
+        const mid = curve.getPoint(0.5);
+        const brow = this.joint(this.head, mid.x, mid.y, mid.z);
+        this.add(brow, new TubeGeometry(curve, 10, fem ? 0.0017 : 0.0024, 5, false).scale(1, 0.8, 1).translate(-mid.x, -mid.y, -mid.z), M(L.hairColor, 0.78));
+        this.brows.push(brow);
+      }
+      // Lips and the mouth between them.
+      const lipC = skinC.clone().lerp(new Color('#a85a52'), fem ? 0.42 : 0.24).getStyle();
+      this.mouth = this.joint(this.head, 0, my, mz - 0.0012);
+      this.add(this.mouth, new SphereGeometry(1, 12, 8).scale(0.016, 0.0022, 0.004), M('#2a0e0e', 0.9));
+      this.add(this.head, new CapsuleGeometry(0.0033, 0.03, 4, 10).rotateZ(Math.PI / 2).scale(1, 1, 0.55), C(lipC), 0, my + 0.0038, mz + 0.0008);
+      this.lowerLip = this.joint(this.head, 0, my - 0.0045, mz + 0.0002);
+      this.add(this.lowerLip, new CapsuleGeometry(fem ? 0.0046 : 0.0042, 0.026, 4, 10).rotateZ(Math.PI / 2).scale(1, 1, 0.6), C(lipC));
+    }
 
     // Facial hair.
-    const hairC = hairMat(L.beardColor);
     if (L.beard === 'full' || L.beard === 'trim' || L.beard === 'goatee') {
       const thick = L.beard === 'full' ? 0.009 : 0.0035;
       const span = L.beard === 'goatee' ? 0.7 : 2.2;
@@ -717,84 +835,71 @@ export class Human {
         -span,
         span,
         thick,
-        30,
-        10,
+        lite ? 16 : 30,
+        lite ? 6 : 10,
       );
-      // Soft upper edge: the top rows fade out.
-      const n = g.attributes.position.count;
-      const col = new Float32Array(n * 4);
-      const bc = new Color(L.beardColor);
-      for (let i = 0; i < n; i++) {
-        const row = Math.floor(i / 31);
-        col.set([bc.r, bc.g, bc.b, Math.min(1, row / 3.5)], i * 4);
+      if (lite) this.add(this.head, g, M(L.beardColor, 0.95));
+      else {
+        // Soft upper edge: the top rows fade out.
+        const n = g.attributes.position.count;
+        const col = new Float32Array(n * 4);
+        const bc = new Color(L.beardColor);
+        for (let i = 0; i < n; i++) col.set([bc.r, bc.g, bc.b, Math.min(1, Math.floor(i / 31) / 3.5)], i * 4);
+        g.setAttribute('color', new Float32BufferAttribute(col, 4));
+        this.add(this.head, g, OWN(cached('beardMat', () => new MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.95 }))));
       }
-      g.setAttribute('color', new Float32BufferAttribute(col, 4));
-      this.add(this.head, g, cached(`beard${L.beardColor}`, () => new MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.95, depthWrite: true })));
-      // Moustache.
+    }
+    if (!lite && (L.beard === 'full' || L.beard === 'trim' || L.beard === 'goatee' || L.beard === 'moustache')) {
+      const r = L.beard === 'full' ? 0.0045 : L.beard === 'moustache' ? 0.004 : 0.0035;
       const mc = new CatmullRomCurve3([new Vector3(-0.022, my + 0.009, faceZ(0.022, my + 0.009) + 0.003), new Vector3(0, my + 0.013, mz + 0.008), new Vector3(0.022, my + 0.009, faceZ(0.022, my + 0.009) + 0.003)]);
-      this.add(this.head, new TubeGeometry(mc, 10, L.beard === 'full' ? 0.0045 : 0.0035, 6, false), hairC);
-    } else if (L.beard === 'moustache') {
-      const mc = new CatmullRomCurve3([new Vector3(-0.021, my + 0.008, faceZ(0.021, my + 0.008) + 0.003), new Vector3(0, my + 0.012, mz + 0.008), new Vector3(0.021, my + 0.008, faceZ(0.021, my + 0.008) + 0.003)]);
-      this.add(this.head, new TubeGeometry(mc, 10, 0.004, 6, false), hairC);
+      this.add(this.head, new TubeGeometry(mc, 10, r, 6, false), M(L.beardColor, 0.78));
     }
 
     // Hair and head coverings.
-    const hc = hairMat(L.hairColor);
+    const hairP = M(L.hairColor, 0.78);
+    const hs = lite ? 0.5 : 1;
+    const U = (n: number) => Math.max(8, Math.round(n * hs));
     switch (L.head) {
       case 'hair':
       case 'longhair': {
         const a = (phi: number) => Math.abs(phi);
-        this.add(
-          this.head,
-          headShell(() => 0, (phi) => (fem ? 1.16 : 1.2) + 0.12 * smooth(0.2, 0.9, a(phi)) + (fem ? 0.75 : 0.35) * smooth(1.0, 1.6, a(phi)) + (fem ? 0.2 : 0.45) * smooth(1.9, 3.0, a(phi)), -Math.PI, Math.PI, fem ? 0.008 : 0.0055, 40, 14),
-          hc,
-        );
-        if (L.head === 'longhair') {
-          this.add(this.head, new CapsuleGeometry(0.05, 0.16, 4, 12).scale(1.3, 1, 0.6), hc, 0, -0.12, -0.075);
-        } else if (fem) this.add(this.head, new SphereGeometry(0.038, 14, 10), hc, 0, 0.03, -0.1);
+        this.add(this.head, headShell(() => 0, (phi) => (fem ? 1.16 : 1.2) + 0.12 * smooth(0.2, 0.9, a(phi)) + (fem ? 0.75 : 0.35) * smooth(1.0, 1.6, a(phi)) + (fem ? 0.2 : 0.45) * smooth(1.9, 3.0, a(phi)), -Math.PI, Math.PI, fem ? 0.008 : 0.0055, U(40), U(14)), hairP);
+        if (L.head === 'longhair') this.add(this.head, new CapsuleGeometry(0.05, 0.16, 4, 12).scale(1.3, 1, 0.6), hairP, 0, -0.12, -0.075);
+        else if (fem) this.add(this.head, new SphereGeometry(0.038, 14, 10), hairP, 0, 0.03, -0.1);
         break;
       }
       case 'cap': {
-        this.add(this.head, headShell(() => 0, () => 1.3, -Math.PI, Math.PI, 0.01, 28, 8), cloth(L.headColor, 0.75));
-        this.add(this.head, new CylinderGeometry(0.075, 0.075, 0.006, 20, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.1), cloth(L.headColor, 0.7), 0, 0.05, 0.075).rotation.x = 0.18;
-        this.add(this.head, headShell(() => 1.3, () => 1.75, -Math.PI, -1.9, 0.004, 8, 3), hc);
+        this.add(this.head, headShell(() => 0, () => 1.3, -Math.PI, Math.PI, 0.01, U(28), U(8)), C(L.headColor));
+        this.add(this.head, new CylinderGeometry(0.075, 0.075, 0.006, 20, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.1).rotateX(0.18), C(L.headColor), 0, 0.05, 0.075);
+        this.add(this.head, headShell(() => 1.3, () => 1.75, -Math.PI, -1.9, 0.004, 8, 3), hairP);
         break;
       }
       case 'kufi':
-        this.add(this.head, headShell(() => 0, () => 0.95, -Math.PI, Math.PI, 0.008, 28, 6), cloth('#f7f6f2', 0.8));
-        this.add(this.head, headShell(() => 0.95, (phi) => 1.3 + 0.6 * Math.min(1, Math.abs(phi) / Math.PI), -Math.PI, Math.PI, 0.005, 28, 6), hc);
+        this.add(this.head, headShell(() => 0, () => 0.95, -Math.PI, Math.PI, 0.008, U(28), 6), C('#f7f6f2'));
+        this.add(this.head, headShell(() => 0.95, (phi) => 1.3 + 0.6 * Math.min(1, Math.abs(phi) / Math.PI), -Math.PI, Math.PI, 0.005, U(28), 6), hairP);
         break;
       case 'ghutra':
       case 'shemagh': {
-        const tex = ghutraTexture(L.head === 'shemagh');
-        const m = new MeshPhysicalMaterial({ map: tex, roughness: 0.85, sheen: 0.4, sheenRoughness: 0.8, sheenColor: new Color('#ffffff'), side: DoubleSide });
-        this.add(this.head, headShell(() => 0, (phi) => 1.1 + 0.8 * smooth(0.9, 1.7, Math.abs(phi)), -Math.PI, Math.PI, 0.011, 40, 12), m);
-        const drape = headDrape({ open: (v) => 0.86 + v * 0.42, top: 0.05, bottom: -0.6, spread: 1.05, tight: 1.13, folds: 1.6 });
-        this.add(this.head, drape, m);
-        // Agal: the black double cord.
-        for (const dy of [0, 0.017]) {
-          const ring = this.add(this.head, new TorusGeometry(0.083, 0.0085, 8, 40).rotateX(Math.PI / 2).scale(0.93, 1, 1.12), solid('#0c0c0d', 0.55), 0, 0.07 + dy, -0.008);
-          ring.rotation.x = -0.14;
-        }
+        const red = L.head === 'shemagh';
+        const m = cached(`ghutraMat${red}`, () => new MeshPhysicalMaterial({ map: ghutraTexture(red), roughness: 0.85, sheen: 0.4, sheenRoughness: 0.8, sheenColor: new Color('#ffffff'), side: DoubleSide }));
+        this.add(this.head, headShell(() => 0, (phi) => 1.1 + 0.8 * smooth(0.9, 1.7, Math.abs(phi)), -Math.PI, Math.PI, 0.011, U(40), U(12)), OWN(m));
+        this.add(this.head, headDrape({ open: (v) => 0.86 + v * 0.42, top: 0.05, bottom: -0.6, spread: 1.05, tight: 1.13, folds: 1.6 }, lite), OWN(m));
+        for (const dy of [0, 0.017]) this.add(this.head, new TorusGeometry(0.083, 0.0085, 8, U(40)).rotateX(Math.PI / 2).scale(0.93, 1, 1.12).rotateX(-0.14), M('#0c0c0d', 0.55), 0, 0.07 + dy, -0.008);
         break;
       }
       case 'shayla':
       case 'niqab':
       case 'hijab': {
         const color = L.head === 'hijab' ? L.headColor : '#141216';
-        const m = cloth(color, 0.72, 0.5, true);
-        this.add(this.head, headShell(() => 0, (phi) => 1.16 + 0.7 * smooth(0.8, 1.6, Math.abs(phi)), -Math.PI, Math.PI, 0.009, 40, 12), m);
-        const drape = headDrape({ open: (v) => 0.72 * (1 - smooth(0.28, 0.4, v)) + 0.02, top: 0.04, bottom: -0.42, spread: 0.85, tight: 1.12, folds: 0.6 });
-        this.add(this.head, drape, m);
-        if (L.head === 'niqab') {
-          const g = headShell(() => 1.62, () => 2.75, -1.25, 1.25, 0.014, 18, 8);
-          this.add(this.head, g, cloth('#0f0e11', 0.75, 0.4, true));
-        }
+        const p = L.head === 'hijab' ? CD(color) : SILK(color, true);
+        this.add(this.head, headShell(() => 0, (phi) => 1.16 + 0.7 * smooth(0.8, 1.6, Math.abs(phi)), -Math.PI, Math.PI, 0.009, U(40), U(12)), p);
+        this.add(this.head, headDrape({ open: (v) => 0.72 * (1 - smooth(0.28, 0.4, v)) + 0.02, top: 0.04, bottom: -0.42, spread: 0.85, tight: 1.12, folds: 0.6 }, lite), p);
+        if (L.head === 'niqab') this.add(this.head, headShell(() => 1.62, () => 2.75, -1.25, 1.25, 0.014, 18, 8), SILK('#0f0e11', true));
         break;
       }
     }
-    if (L.glasses) {
-      const frame = solid('#1b1b1b', 0.35, 0.4);
+    if (L.glasses && !lite) {
+      const frame = M('#1b1b1b', 0.35);
       for (const sx of [-1, 1]) this.add(this.head, new TorusGeometry(0.017, 0.0016, 6, 20), frame, sx * 0.031, 0.011, faceZ(0.031, 0.011) + 0.008);
       this.add(this.head, new CylinderGeometry(0.0013, 0.0013, 0.026, 4).rotateZ(Math.PI / 2), frame, 0, 0.015, faceZ(0, 0.015) + 0.007);
     }
@@ -802,6 +907,7 @@ export class Human {
       const cane = new Mesh(new CylinderGeometry(0.011, 0.011, 0.9, 8).translate(0, -0.45, 0), solid('#5b3a1e', 0.5));
       cane.castShadow = true;
       this.handL.add(cane);
+      this.extras.push(cane);
     }
   }
 
@@ -812,17 +918,16 @@ export class Human {
     if (kind === 'basket') {
       const g = new Group();
       const red = solid('#d32f2f', 0.45);
-      const body = new Mesh(new CylinderGeometry(0.21, 0.17, 0.2, 4, 1, true).rotateY(Math.PI / 4).scale(1.25, 1, 0.75), red);
-      body.material = cached('basketMat', () => new MeshStandardMaterial({ color: '#d32f2f', roughness: 0.45, side: DoubleSide }));
+      const body = new Mesh(basketGeo(), cached('basketMat', () => new MeshStandardMaterial({ color: '#d32f2f', roughness: 0.45, side: DoubleSide })));
       body.position.y = -0.27;
-      const bottomPlate = new Mesh(new CylinderGeometry(0.17, 0.17, 0.01, 4).rotateY(Math.PI / 4).scale(1.25, 1, 0.75), red);
+      const bottomPlate = new Mesh(cached('basketBottom', () => new CylinderGeometry(0.17, 0.17, 0.01, 4).rotateY(Math.PI / 4).scale(1.25, 1, 0.75)), red);
       bottomPlate.position.y = -0.37;
-      const handle = new Mesh(new TorusGeometry(0.17, 0.01, 6, 20, Math.PI), solid('#b71c1c', 0.4));
+      const handle = new Mesh(cached('basketHandle', () => new TorusGeometry(0.17, 0.01, 6, 20, Math.PI)), solid('#b71c1c', 0.4));
       handle.position.y = -0.17;
       g.add(body, bottomPlate, handle);
       const colors = ['#f2c230', '#1f6fd0', '#f4f4f0', '#c2302a', '#3f9150'];
       for (let i = 0; i < Math.min(5, items); i++) {
-        const m = new Mesh(new CylinderGeometry(0.03, 0.03, 0.14, 10), solid(colors[i], 0.5));
+        const m = new Mesh(cached('basketItem', () => new CylinderGeometry(0.03, 0.03, 0.14, 10)), solid(colors[i], 0.5));
         m.position.set(-0.1 + i * 0.05, -0.26, (i % 2) * 0.05 - 0.02);
         g.add(m);
       }
@@ -831,9 +936,9 @@ export class Human {
       this.carry = g;
     } else if (kind === 'bag') {
       const g = new Group();
-      const bag = new Mesh(new SphereGeometry(0.16, 16, 12).scale(1, 1.25, 0.6), cached('bagMat', () => new MeshStandardMaterial({ map: bagTexture(), roughness: 0.6, side: DoubleSide })));
+      const bag = new Mesh(cached('bagGeo', () => new SphereGeometry(0.16, 16, 12).scale(1, 1.25, 0.6)), cached('bagMat', () => new MeshStandardMaterial({ map: bagTexture(), roughness: 0.6, side: DoubleSide })));
       bag.position.y = -0.24;
-      const handles = new Mesh(new TorusGeometry(0.05, 0.008, 6, 16), solid('#fbfbf8', 0.6));
+      const handles = new Mesh(cached('bagHandles', () => new TorusGeometry(0.05, 0.008, 6, 16)), solid('#fbfbf8', 0.6));
       handles.position.y = -0.04;
       g.add(bag, handles);
       g.traverse((o) => (o.castShadow = true));
@@ -882,7 +987,6 @@ export class Human {
       let el = -0.22 - Math.max(0, Math.sin(q)) * 0.25 * walk;
       let sz = (s === 0 ? 1 : -1) * 0.035;
       if (s === 1) {
-        // Right arm: reach for a shelf or the desk, hold something out, talk with the hand.
         const reachAngle = p.reachY > 1.3 ? 1.9 : p.reachY > 0.95 ? 1.3 : 0.9;
         sx = sx * (1 - p.reach) - p.reach * reachAngle;
         el = el * (1 - p.reach) - p.reach * 0.25;
@@ -930,6 +1034,7 @@ export class Human {
     this.headPitch += (pitch - this.headPitch) * Math.min(1, dt * 5);
     this.neck.rotation.set(this.headPitch * 0.35, this.headYaw * 0.35, 0);
     this.head.rotation.set(this.headPitch * 0.65, this.headYaw * 0.65, Math.sin(this.t * 0.6) * 0.02);
+    if (this.detail === 'lite') return;
     // Eyes follow a little further than the head; lids blink.
     for (const e of this.eyes) e.rotation.set(this.headPitch * 0.3, (yaw - this.headYaw) * 0.6 + this.headYaw * 0.1, 0);
     this.blinkT -= dt;
@@ -950,37 +1055,24 @@ export class Human {
         this.open = Math.random() < 0.18 ? 0.1 : 0.35 + Math.random() * 0.65;
       }
     } else this.open = p.mood === 'happy' ? 0.15 : 0;
-    const cur = this.mouth.scale.y;
-    const target = 1 + this.open * 2.2;
-    this.mouth.scale.y = cur + (target - cur) * Math.min(1, dt * 18);
-    this.lowerLip.position.y = -0.0555 - (this.mouth.scale.y - 1) * 0.0022;
-
-    // Robe hem follows the legs.
-    if (this.robe) {
-      const g = this.robe.mesh.geometry;
-      const pos = g.attributes.position;
-      const base = this.robe.base;
-      const aL = -this.hip[0].rotation.x;
-      const aR = -this.hip[1].rotation.x;
-      for (let i = 0; i < pos.count; i++) {
-        const x = base[i * 3];
-        const y = base[i * 3 + 1];
-        const z = base[i * 3 + 2];
-        if (y > -0.05) continue;
-        const depth = -y - 0.05;
-        const wL = smooth(-0.08, 0.1, x);
-        const a = aL * wL + aR * (1 - wL);
-        pos.setXYZ(i, x, y + Math.abs(a) * depth * 0.08, z + Math.sin(a) * depth * 0.75);
-      }
-      pos.needsUpdate = true;
-      g.computeVertexNormals();
+    if (this.mouth && this.lowerLip) {
+      const cur = this.mouth.scale.y;
+      this.mouth.scale.y = cur + (1 + this.open * 2.2 - cur) * Math.min(1, dt * 18);
+      this.lowerLip.position.y = -0.0555 - (this.mouth.scale.y - 1) * 0.0022;
     }
     if (this.tassel) this.tassel.rotation.x = Math.sin(this.t * 3 + ph) * 0.08 * (0.3 + walk) + p.reach * 0.3;
   }
 
   dispose(): void {
     this.root.removeFromParent();
-    for (const m of this.meshes) m.geometry.dispose();
-    this.robe = null;
+    for (const m of this.skinned) {
+      m.geometry.dispose();
+      m.skeleton.dispose();
+    }
+    for (const m of this.extras) m.geometry.dispose();
   }
+}
+
+function basketGeo(): BufferGeometry {
+  return cached('basketGeo', () => new CylinderGeometry(0.21, 0.17, 0.2, 4, 1, true).rotateY(Math.PI / 4).scale(1.25, 1, 0.75));
 }

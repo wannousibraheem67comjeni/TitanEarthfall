@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CLOSE, OPEN } from '../src/game/clock';
-import { DAILY_INTEREST, STAGES } from '../src/game/economy';
+import { STAGES } from '../src/game/economy';
 import { newState, Store } from '../src/game/state';
 
 function memoryStorage(): Storage {
@@ -31,23 +30,30 @@ describe('store', () => {
     expect(st.save()).toBe(0);
   });
 
-  it('upgrades once there is enough, counting the till', () => {
+  it('upgrades from savings only; the leftover stays saved', () => {
     const st = new Store(newState('علي', 'm'));
     const cost = STAGES[0].next!;
     const stages: number[] = [];
     st.on('stage', (e) => stages.push(e.stage));
-    st.till(cost - 10);
-    st.save();
+    st.till(cost + 7);
     expect(st.canUpgrade).toBe(false);
-    expect(st.upgrade()).toBe(false);
-    st.till(15);
+    st.save();
     expect(st.canUpgrade).toBe(true);
     expect(st.upgrade()).toBe(true);
     expect(st.s.stage).toBe(1);
-    expect(st.s.drawer).toBe(0);
-    expect(st.s.savings).toBe(5);
+    expect(st.s.savings).toBe(7);
     expect(st.s.invested).toBe(cost);
     expect(stages).toEqual([1]);
+  });
+
+  it('saving in small amounts adds up: 5, then 5, then 5', () => {
+    const st = new Store(newState('علي', 'm'));
+    for (let i = 0; i < 4; i++) {
+      st.till(5);
+      expect(st.save()).toBe(5);
+    }
+    expect(st.s.savings).toBe(20);
+    expect(st.s.drawer).toBe(0);
   });
 
   it('cannot go past the last stage', () => {
@@ -56,26 +62,11 @@ describe('store', () => {
     expect(st.upgrade()).toBe(false);
   });
 
-  it('savings earn interest at closing time, and the big stages earn income by the hour', () => {
-    const st = new Store({ ...newState('علي', 'm'), savings: 1000 });
-    expect(st.advance(60)).toBe(0);
-    expect(st.s.minute).toBe(OPEN + 60);
-    const day = st.closeDay();
-    expect(day.interest).toBeCloseTo(1000 * DAILY_INTEREST, 5);
-    expect(st.s.savings).toBeCloseTo(1000 * (1 + DAILY_INTEREST), 5);
-    st.newDay();
-    expect(st.s.day).toBe(2);
-    expect(st.s.minute).toBe(OPEN);
+  it('branches and contracts bring income every minute', () => {
     const big = new Store({ ...newState('علي', 'm'), stage: 6 });
     expect(big.advance(30)).toBeCloseTo(STAGES[6].passive / 2, 5);
     expect(big.s.drawer).toBeCloseTo(STAGES[6].passive / 2, 5);
-  });
-
-  it('the clock stops at closing time', () => {
-    const st = new Store(newState('علي', 'm'));
-    st.advance(60 * 60);
-    expect(st.s.minute).toBe(CLOSE);
-    expect(st.open).toBe(false);
+    expect(new Store(newState('علي', 'm')).advance(60)).toBe(0);
   });
 
   it('announces each new title once, with the right form for her', () => {

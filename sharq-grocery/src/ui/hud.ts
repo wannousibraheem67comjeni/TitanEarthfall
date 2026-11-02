@@ -1,9 +1,8 @@
 /**
- * What stays on screen: the shop's stage and stars, the clock, the wealth and its
+ * What stays on screen: the shop's stage and stars, the savings, the wealth and its
  * title, the till drawer; the big pink savings button at the bottom; subtitles of what
  * is being said; short notes; money floating up from the desk.
  */
-import { clockText, dayName } from '../game/clock';
 import { fmt, LADDER, STAGES } from '../game/economy';
 import type { Store } from '../game/state';
 import { h } from './dom';
@@ -12,8 +11,7 @@ export class Hud {
   readonly el = h('div.hud');
   private readonly stageEl = h('span.name');
   private readonly starsEl = h('span.stars');
-  private readonly clockEl = h('b');
-  private readonly dayEl = h('span');
+  private readonly savedEl = h('b');
   private readonly worthEl = h('b');
   private readonly titleEl = h('span.title');
   private readonly ladderFill = h('i');
@@ -41,7 +39,7 @@ export class Hud {
       'div.topbar',
       h('div.chip.stage', h('span.ico', '🏪'), h('div', this.stageEl, this.starsEl)),
       h('div.chip.worth', h('div.row1', h('span', 'ثروتك '), this.worthEl), this.titleEl, h('span.ladder', this.ladderFill)),
-      h('div.chip.clock', h('span.ico', '🕖'), h('div', this.clockEl, this.dayEl)),
+      h('div.chip.saved', h('span', '💗 الادخار'), this.savedEl),
       h('div.chip.drawer', h('span', 'الدرج'), this.drawerEl),
     );
     this.saveBtn.append(this.saveLabel, this.saveSub, h('span.bar', this.saveFill));
@@ -71,25 +69,19 @@ export class Hud {
     const next = LADDER[r + 1];
     this.ladderFill.style.width = next ? `${Math.min(100, ((this.store.worth - LADDER[r].at) / (next.at - LADDER[r].at)) * 100)}%` : '100%';
     this.drawerEl.textContent = fmt(Math.floor(s.drawer * 10) / 10);
+    this.savedEl.textContent = fmt(Math.floor(s.savings));
+    // The pink button always saves; the bar shows how close the next stage is.
     const cost = this.store.nextCost;
-    const can = this.store.canUpgrade;
-    this.saveBtn.classList.toggle('ready', can);
-    this.saveLabel.textContent = can ? '🎉 طوّر البقالة' : '💗 ادخار';
+    this.saveBtn.classList.toggle('ready', s.drawer >= 1);
+    this.saveLabel.textContent = '💗 ادخار';
     if (cost === null) {
-      this.saveSub.textContent = `بالادخار: ${fmt(Math.floor(s.savings))}`;
+      this.saveSub.textContent = s.drawer >= 1 ? `اضغط وادّخر ${fmt(Math.floor(s.drawer))}` : `بالادخار ${fmt(Math.floor(s.savings))}`;
       this.saveFill.style.width = '100%';
     } else {
-      const have = s.savings + (can ? s.drawer : 0);
-      this.saveSub.textContent = can ? `${STAGES[s.stage + 1].name} بـ${fmt(cost)}` : `بالادخار ${fmt(Math.floor(s.savings))} من ${fmt(cost)}`;
-      this.saveFill.style.width = `${Math.min(100, (have / cost) * 100)}%`;
+      const next = STAGES[s.stage + 1].name;
+      this.saveSub.textContent = s.drawer >= 1 ? `اضغط وادّخر ${fmt(Math.floor(s.drawer))} · ${next} بـ${fmt(cost)}` : `${fmt(Math.floor(s.savings))} من ${fmt(cost)} · ${next}`;
+      this.saveFill.style.width = `${Math.min(100, (s.savings / cost) * 100)}%`;
     }
-    this.clock();
-  }
-
-  clock(): void {
-    const s = this.store.s;
-    this.clockEl.textContent = clockText(s.minute);
-    this.dayEl.textContent = `${dayName(s.day)} · يوم ${s.day}`;
   }
 
   toast(text: string, kind: 'good' | 'bad' | 'info' | 'big' = 'info'): void {
@@ -118,11 +110,6 @@ export class Hud {
     while (cut < text.length && text[cut] !== ' ' && text[cut] !== '،' && text[cut] !== '.') cut++;
     this.subSaid.textContent = text.slice(0, cut);
     this.subRest.textContent = text.slice(cut);
-  }
-
-  /** The pink button gives way to the decision buttons while a bill waits. */
-  showPink(on: boolean): void {
-    this.saveBtn.hidden = !on;
   }
 
   nudge(): void {

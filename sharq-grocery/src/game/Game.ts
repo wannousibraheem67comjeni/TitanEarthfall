@@ -1,22 +1,22 @@
 /**
- * The shop running, seen from behind the desk. Shop time passes (one minute a second,
- * seven in the morning to eleven at night) with busy and quiet hours. Now and then
- * someone walks in, shops, queues, puts the goods on the desk and says the bill out
- * loud while the receipt prints; when they finish, the accept and refuse buttons come
- * up. The pink button saves the till or, when the savings are enough, grows the shop.
+ * The shop running, seen from behind the desk, on a street in daylight. Customers come
+ * in waves: one or two at a time in a small shop, dozens in a big one, where other
+ * cashiers work their own tills beside you. Those who come to your desk put the goods
+ * down and say the bill out loud while the receipt prints; when they finish, the
+ * accept button comes up. Everything paid lands in the till; the pink button saves it
+ * all, and when the savings reach the goal the shop grows.
  */
 import { PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Sfx } from '../audio/sfx';
 import { Rng } from '../core/rng';
 import { h } from '../ui/dom';
 import { Hud } from '../ui/hud';
-import { Card, showDaySummary, showHowTo, showPrices, showRank, showUpgrade } from '../ui/overlays';
+import { Card, showHowTo, showPrices, showRank, showUpgrade } from '../ui/overlays';
 import { DecisionBar, Receipt } from '../ui/receipt';
 import { SpeechOutput } from '../voice/speech';
 import { pickQuality, View } from '../world/render';
 import { buildShop, type Shop } from '../world/shop';
 import { DayLight } from '../world/sky';
-import { CLOSE, LAST_IN, rush, RUSH_AVERAGE } from './clock';
 import { Customer, makePersona, Passerby, personaAgain } from './customers';
 import { decide, fmt, LADDER, makeBill, STAGES, type Bill } from './economy';
 import { billSpeech, keeperLine, type Speech } from './lines';
@@ -24,6 +24,10 @@ import type { Store } from './state';
 
 /** Seconds a customer waits for a decision after finishing before giving up. */
 const PATIENCE = 28;
+/** The light of a fine late morning; the game has no clock. */
+const DAYTIME = 10.5 * 60;
+/** How many people can be in the shop at once, by quality (people cost drawing time). */
+const CROWD_CAP = { high: 50, medium: 28, low: 14 };
 /** Speaking rate used to follow speech when the voice gives no word timings (characters a second). */
 const CHARS_PER_SECOND = 12.5;
 
@@ -62,9 +66,12 @@ export class Game {
   private spawnT = 8;
   private walkerT = 3;
   private saveT = 5;
-  private hourT = 0;
-  private hourIncome = 0;
-  private closing = false;
+  private minuteT = 0;
+  private minuteIncome = 0;
+  /** Waves of customers: a quiet spell, an ordinary one, a rush. */
+  private wave: { mult: number; left: number } = { mult: 1, left: 30 };
+  private pendingUpgrade = false;
+  private readonly stuck = new Map<Customer, number>();
   private modal = false;
   private modals: (() => void)[] = [];
   private paused = true;
@@ -87,7 +94,7 @@ export class Game {
     this.scene.add(this.shop.group);
     this.shop.street.onPass = (d) => this.sfx.whoosh(d);
     this.look.copy(this.shop.layout.camera.look);
-    this.daylight.set(8 * 60);
+    this.daylight.set(DAYTIME);
     this.placeCamera();
     window.addEventListener('resize', () => {
       this.view.resize();
@@ -131,13 +138,13 @@ export class Game {
     const portrait = innerWidth < innerHeight;
     // On a tall phone screen, step back a little so the customer fits between the bars.
     this.camera.position.set(base.x + Math.sin(this.t * 0.31) * 0.006, base.y + Math.sin(this.t * 1.6) * 0.004 + (portrait ? 0.08 : 0), base.z + (portrait ? 0.38 : 0));
-    const at = this.customers.find((c) => c.slot === 0 && (c.phase === 'desk' || c.phase === 'talk' || c.phase === 'wait' || c.phase === 'pay'));
+    const at = this.customers.find((c) => c.lane === 0 && c.slot === 0 && (c.phase === 'desk' || c.phase === 'talk' || c.phase === 'wait' || c.phase === 'pay'));
     const target = new Vector3();
     if (at) target.set(at.pos.x * 0.6, Math.min(portrait ? 1.32 : 1.2, at.human.height * 0.82 - (portrait ? 0.08 : 0.15)), at.pos.z - 0.1);
     else {
       // Idle: down the aisle to the door, drifting toward whoever is moving about.
       target.copy(L.camera.look);
-      const mover = this.customers.find((c) => c.phase === 'arrive' || c.phase === 'browse' || c.phase === 'line');
+      const mover = this.customers.find((c) => c.lane === 0 && (c.phase === 'arrive' || c.phase === 'browse' || c.phase === 'line'));
       if (mover) target.x += Math.max(-2.5, Math.min(2.5, mover.pos.x)) * 0.35;
     }
     this.look.lerp(target, Math.min(1, dt * 2.2));
@@ -175,7 +182,7 @@ export class Game {
       this.hud.soundBtn.textContent = muted ? '🔇' : '🔊';
     };
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !this.modal && !this.decision.open) {
+      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !this.modal) {
         e.preventDefault();
         this.pressPink();
       }
@@ -203,15 +210,16 @@ export class Game {
     this.walkers = [];
     this.talk = null;
     this.deciding = null;
+    this.stuck.clear();
     this.receipt?.hide();
     this.decision?.hide();
     this.hud?.subtitle(null);
-    this.hud?.showPink(true);
     this.shop.group.removeFromParent();
     this.shop = buildShop(stage, { shadows: this.view.shadows });
     this.shop.street.onPass = (d) => this.sfx.whoosh(d);
     this.scene.add(this.shop.group);
     this.daylight.focus.set(0, 0, this.shop.layout.walkZ - 2);
+    this.daylight.set(DAYTIME);
     this.look.copy(this.shop.layout.camera.look);
   }
 
@@ -231,7 +239,7 @@ export class Game {
     this.last = now;
     this.t += dt;
     if (this.store && !this.paused && !this.modal) this.step(dt * this.timeScale);
-    else if (!this.store) this.shop.update(dt, 8 * 60, 0, []);
+    else if (!this.store) this.shop.update(dt, DAYTIME, 0, []);
     this.updateCamera(dt);
     this.view.render(dt);
   }
@@ -241,41 +249,43 @@ export class Game {
     const st = STAGES[s.stage];
     const L = this.shop.layout;
 
-    // Shop time, branch income by the hour.
+    // Branches and contracts pay in every minute.
     const passive = this.store.advance(dt);
-    this.hourIncome += passive;
-    this.hourT += dt;
-    if (this.hourT >= 60) {
-      this.hourT = 0;
-      if (this.hourIncome >= 1) this.hud.toast(`🏬 دخل الفروع والعقود هالساعة: +${fmt(Math.round(this.hourIncome))}`, 'good');
-      this.hourIncome = 0;
-      this.hud.refresh();
+    this.minuteIncome += passive;
+    this.minuteT += dt;
+    if (this.minuteT >= 60) {
+      this.minuteT = 0;
+      if (this.minuteIncome >= 1) this.hud.toast(`🏬 دخل الفروع والعقود: +${fmt(Math.round(this.minuteIncome))} بالدرج`, 'good');
+      this.minuteIncome = 0;
     }
-    this.hud.clock();
-    const night = this.daylight.set(s.minute);
-    // The sky's share of the ambient light fades after sunset; the shop's own lights carry on.
-    this.scene.environmentIntensity = 0.18 + 0.3 * (1 - night);
+    if (passive) this.hud.refresh();
     const people = [...this.customers.map((c) => c.pos), ...this.walkers.map((w) => w.pos)];
-    this.shop.update(dt, s.minute, night, people);
-    this.sfx.setOutside(rush(s.minute) / 1.6, night);
+    this.shop.update(dt, DAYTIME, 0, people);
+    this.sfx.setOutside(Math.min(1, 0.4 + this.wave.mult * 0.4), 0);
 
-    // Someone new, now and then: busier at rush hours and with more stars.
+    // Waves: a quiet spell (often just one person), an ordinary stretch, a rush.
+    this.wave.left -= dt;
+    if (this.wave.left <= 0) {
+      const r = this.rng.next();
+      this.wave = r < 0.3 ? { mult: 0.4, left: this.rng.range(20, 45) } : r < 0.72 ? { mult: 1, left: this.rng.range(30, 70) } : { mult: 1.8, left: this.rng.range(25, 50) };
+    }
+    const cap = CROWD_CAP[this.view.quality];
+    // A small shop sees one to three people at a time; a big one, dozens.
+    const target = Math.min(cap, st.crowd < 10 ? Math.min(st.crowd + 1, Math.max(1, Math.round(st.crowd * this.wave.mult))) : Math.max(3, Math.round(st.crowd * this.wave.mult)));
     const inside = this.customers.length;
-    const maxIn = 2 + Math.floor(s.stage / 2);
     this.spawnT -= dt;
-    if (this.spawnT <= 0 && inside < maxIn && s.minute < LAST_IN) {
-      const busy = rush(s.minute) / RUSH_AVERAGE;
-      const stars = (1.5 - s.rep * 0.15) / 1.125;
-      this.spawnT = (st.spawn / Math.max(0.3, busy)) * stars * this.rng.range(0.6, 1.4);
-      this.spawn(makeBill(this.rng, s.stage));
+    if (this.spawnT <= 0 && inside < target) {
+      // Big shops fill quickly; a kiosk gets someone every little while.
+      this.spawnT = (st.crowd >= 10 ? this.rng.range(0.35, 1.3) : this.rng.range(3, 9)) * (1.25 - s.rep * 0.1);
+      this.spawnCustomer();
     }
     // Debtors come back (or don't).
     for (const d of [...s.debts]) {
-      if (d.due > s.time || s.minute >= LAST_IN) continue;
+      if (d.due > s.time) continue;
       s.debts.splice(s.debts.indexOf(d), 1);
       if (this.rng.next() < d.trust) {
         const bill: Bill = { kind: 'repay', lines: [], total: 0, cost: 0, pays: d.amount, note: noteFor(d.amount), pay: 'cash', debt: d.amount };
-        this.spawn(bill, personaAgain(this.rng, d.name, d.gender, d.look));
+        this.spawn(bill, 0, personaAgain(this.rng, d.name, d.gender, d.look));
       } else {
         s.stats.lostDebts++;
         this.hud.toast(`${d.name} ${d.gender === 'f' ? 'ما رجعت تسدد دينها' : 'ما رجع يسدد دينه'} (${fmt(d.amount)}) 😅 الدين مخاطرة.`, 'bad');
@@ -284,24 +294,38 @@ export class Game {
     // People walking past outside.
     this.walkerT -= dt;
     if (this.walkerT <= 0 && this.walkers.length < 4) {
-      this.walkerT = this.rng.range(5, 16) / Math.max(0.3, rush(s.minute));
-      if (s.minute < CLOSE - 30 || this.rng.chance(0.3)) this.walkers.push(new Passerby(this.rng, this.scene, L));
+      this.walkerT = this.rng.range(5, 14);
+      this.walkers.push(new Passerby(this.rng, this.scene, L));
     }
     for (const w of this.walkers) w.update(dt, this.eyes);
     this.walkers = this.walkers.filter((w) => !w.gone);
 
-    // The line: whoever has finished shopping joins in order; the desk is slot 0.
-    const atDesk = this.customers.find((c) => c.slot === 0 && (c.phase === 'desk' || c.phase === 'talk' || c.phase === 'wait' || c.phase === 'pay'));
-    let slot = atDesk ? 1 : 0;
-    for (const c of this.customers) {
-      if (c === atDesk) continue;
-      if (c.shopped || c.phase === 'line') c.goTo(slot++);
+    // The lines: whoever has finished shopping joins their till's line in order.
+    for (let k = 0; k < L.lanes.length; k++) {
+      const serving = this.customers.find((c) => c.lane === k && c.slot === 0 && (c.phase === 'desk' || c.phase === 'talk' || c.phase === 'wait' || c.phase === 'pay' || c.phase === 'checkout'));
+      let slot = serving ? 1 : 0;
+      const room = k === 0 && s.stage < 3 ? 4 : 3;
+      for (const c of this.customers) {
+        if (c.lane !== k || c === serving) continue;
+        if (!(c.shopped || c.phase === 'line')) continue;
+        if (slot < room) c.goTo(slot++);
+        else if (c.shopped && L.picks.length) c.browseMore(this.rng.pick(L.picks));
+      }
+      // The cashier looks up at whoever is being served, and rings it up.
+      const cashier = k > 0 ? this.shop.cashiers[k - 1] : null;
+      if (cashier) {
+        const busy = serving && serving.phase === 'checkout';
+        cashier.pose.reach += ((busy ? 0.7 : 0) - cashier.pose.reach) * Math.min(1, dt * 4);
+        cashier.pose.reachY = 1.0;
+        cashier.pose.lookAt = busy ? serving.human.root.position.clone().setY(1.5) : null;
+      }
     }
-    for (const c of this.customers) c.update(dt, this.eyes, this.blocked(c));
+    for (const c of this.customers) c.update(dt, this.eyes, this.blocked(c, dt));
+    for (const c of this.customers) if (c.phase === 'gone') this.stuck.delete(c);
     this.customers = this.customers.filter((c) => c.phase !== 'gone');
 
     // The one at the desk: once the goods are down, they say the bill.
-    const at = this.customers.find((c) => c.slot === 0 && c.phase === 'desk' && c.ready);
+    const at = this.customers.find((c) => c.lane === 0 && c.slot === 0 && c.phase === 'desk' && c.ready);
     if (at && !this.talk && !this.deciding) this.startTalk(at);
     if (this.talk) this.followTalk();
     if (this.deciding) {
@@ -310,8 +334,8 @@ export class Game {
       if (c.waited > PATIENCE) this.giveUp(c);
     }
 
-    // Closing time.
-    if (s.minute >= CLOSE && !this.closing && this.customers.length === 0) this.closeDay();
+    // A full savings jar grows the shop, once nobody is mid-sentence at the desk.
+    if (this.pendingUpgrade && !this.talk && !this.deciding) this.doUpgrade();
     this.saveT -= dt;
     if (this.saveT < 0) {
       this.saveT = 5;
@@ -319,8 +343,15 @@ export class Game {
     }
   }
 
-  /** Someone right in front: wait for them to move. */
-  private blocked(c: Customer): boolean {
+  /** Someone right in front: wait for them to move (but not for ever). */
+  private blocked(c: Customer, dt: number): boolean {
+    const b = this.ahead(c);
+    const waited = b ? (this.stuck.get(c) ?? 0) + dt : 0;
+    this.stuck.set(c, waited);
+    return b && waited < 2.5;
+  }
+
+  private ahead(c: Customer): boolean {
     const hd = c.w.heading;
     const fx = Math.sin(hd);
     const fz = Math.cos(hd);
@@ -334,22 +365,58 @@ export class Game {
     return false;
   }
 
-  private spawn(bill: Bill, persona = makePersona(this.rng, bill.kind)): void {
-    const c = new Customer(persona, bill, this.scene, this.shop.layout, this.shop.desk, this.rng);
+  /** A new customer, sent to your desk or to another cashier. */
+  private spawnCustomer(): void {
+    const lanes = this.shop.layout.lanes.length;
+    let lane = 0;
+    if (lanes > 1) {
+      // Your desk takes its share while its line is short; the other tills take the rest.
+      const mine = this.customers.filter((c) => c.lane === 0 && c.phase !== 'leave').length;
+      if (mine >= 3 || !this.rng.chance(1.4 / lanes)) {
+        const load = (k: number) => this.customers.filter((c) => c.lane === k && c.phase !== 'leave').length;
+        lane = 1;
+        for (let k = 2; k < lanes; k++) if (load(k) < load(lane)) lane = k;
+      }
+    }
+    const s = this.store.s;
+    // Other tills take ordinary shopping; children and credit come to you.
+    const bill = lane === 0 ? makeBill(this.rng, s.stage) : makeBill(this.rng, s.stage, this.rng.chance(0.75) ? 'normal' : 'big');
+    this.spawn(bill, lane);
+  }
+
+  private spawn(bill: Bill, lane: number, persona = makePersona(this.rng, bill.kind)): void {
+    const c = new Customer(persona, bill, this.scene, this.shop.layout, this.shop.desk, this.rng, lane);
     this.customers.push(c);
-    // The door chime rings each time they go through it.
-    c.onDoor = () => this.sfx.doorChime();
+    // The door chime rings each time someone goes through it (not for every one of a crowd).
+    c.onDoor = () => {
+      if (this.customers.length < 8 || this.rng.chance(0.25)) this.sfx.doorChime();
+    };
+    c.onPaid = (who) => this.paidElsewhere(who);
+  }
+
+  /** Someone paid at another cashier's till: the money goes in your till all the same. */
+  private paidElsewhere(c: Customer): void {
+    const money = c.bill.total;
+    this.store.till(money);
+    this.store.s.stats.customers++;
+    const lane = this.shop.layout.lanes[c.lane];
+    if (lane) {
+      const p = new Vector3(lane.x, 1.3, this.shop.layout.deskZ).project(this.camera);
+      if (p.z < 1 && Math.abs(p.x) < 1.05) this.hud.pop(((p.x + 1) / 2) * innerWidth, ((1 - p.y) / 2) * innerHeight, money);
+    }
+    if (this.rng.chance(0.5)) this.sfx.register();
+    this.hud.refresh();
   }
 
   // ------------------------------------------------------------------ the conversation
 
   private startTalk(c: Customer): void {
     const s = this.store.s;
-    const speech = billSpeech(this.rng, c.bill, c.persona, s.gender, s.minute);
+    const speech = billSpeech(this.rng, c.bill, c.persona, s.gender);
     const estimate = speech.text.length / CHARS_PER_SECOND + 0.6;
     this.talk = { c, speech, started: this.t, heard: 0, boundaries: false, voiceDone: false, estimate, done: false };
     c.talk(true);
-    this.receipt.begin(c.bill, c.persona, s.name, s.stage, s.day, s.minute);
+    this.receipt.begin(c.bill, c.persona, s.name, s.stage);
     this.shop.desk.screen([], 0, 'جاري التسجيل…');
     this.shop.desk.paper(0.05);
     const talk = this.talk;
@@ -413,79 +480,56 @@ export class Game {
     if (b.kind === 'credit') this.shop.desk.debtBook(true);
     this.deciding = c;
     c.waited = 0;
-    this.hud.showPink(false);
     this.sfx.pop();
-    this.decision.show(() => this.settle(c, true), b.kind === 'repay' ? '✅ استلم' : '✅ قبول');
+    this.decision.show(() => this.settle(c), b.kind === 'repay' ? '✅ استلم' : '✅ قبول');
   }
 
   private giveUp(c: Customer): void {
     this.deciding = null;
     this.decision.hide();
-    this.hud.showPink(true);
     this.store.stars(-0.3);
     this.hud.toast(`${c.persona.name} ${c.persona.gender === 'f' ? 'ملّت من الانتظار وطلعت' : 'ملّ من الانتظار وطلع'} ⏳`, 'bad');
-    this.say(c, c.persona.gender === 'f' ? 'خلاص، بروح.' : 'خلاص، بروح.');
-    this.clearDesk(c, false);
+    this.say(c, 'خلاص، بروح.');
+    this.clearDesk();
     c.settle(false, 'cross', false);
   }
 
-  private settle(c: Customer, accept: boolean): void {
+  /** You take the bill: everything paid goes in the till. */
+  private settle(c: Customer): void {
     if (this.deciding !== c) return;
     this.deciding = null;
     const s = this.store.s;
     const b = c.bill;
-    const out = decide(b, accept, this.rng.next(), { she: c.persona.gender === 'f', keeperShe: s.gender === 'f' });
+    const k = b.kind;
+    const out = decide(b, { she: c.persona.gender === 'f', keeperShe: s.gender === 'f' });
     if (out.money) this.store.till(out.money);
     this.store.stars(out.rep);
     s.stats.customers++;
-    s.today.customers++;
-    if (accept) {
-      s.stats.accepted++;
-      s.today.accepted++;
-    } else {
-      s.stats.refused++;
-      s.today.refused++;
-    }
-    const k = b.kind;
-    const trick = k === 'fake' || k === 'trick' || k === 'coupon';
-    if (!accept && trick) {
-      s.stats.caught++;
-      s.today.caught++;
-    }
-    if (accept && trick) s.stats.fooled++;
+    s.stats.accepted++;
     if (k === 'repay') s.stats.repaid += b.debt ?? 0;
-    if (out.money > 0) {
-      s.today.profit += out.money;
-      s.today.sales += k === 'repay' ? b.debt ?? 0 : out.money > 0 ? (accept ? b.pays : b.total) : 0;
-    } else if (out.money < 0) s.today.profit += out.money;
     if (out.debt) s.debts.push({ id: this.debtId++, name: c.persona.name, amount: out.debt, trust: c.persona.trust, due: s.time + this.rng.range(150, 420), gender: c.persona.gender, look: c.persona.look });
 
     // What the shopkeeper says, then the customer's reply.
-    const mine = keeperLine(this.rng, b, accept, c.persona, s.gender);
+    const mine = keeperLine(this.rng, b, c.persona);
     this.hud.subtitle('أنت', mine, mine.length, true);
-    const paid = out.money > 0 || (accept && (k === 'fake' || k === 'credit'));
-    const takesGoods = accept ? k !== 'fake' : out.money > 0;
-    if (accept && b.pay === 'card' && k !== 'credit') {
+    if (b.pay === 'card' && k !== 'credit') {
       this.sfx.cardBeep();
       this.shop.desk.terminal('ok');
-    } else if (paid && k !== 'credit') this.sfx.drawer();
-    else if (!out.good) this.sfx.fail();
+    } else if (k !== 'credit') this.sfx.drawer();
     if (out.money) {
       const p = this.shop.desk.itemZone.clone().project(this.camera);
       this.hud.pop(((p.x + 1) / 2) * innerWidth, ((1 - p.y) / 2) * innerHeight - 40, out.money);
     }
-    this.hud.toast(out.text, out.good ? 'good' : 'bad');
-    const mood = accept ? 'happy' : k === 'normal' || k === 'big' || k === 'kid' ? 'sad' : out.money > 0 ? 'neutral' : 'cross';
+    this.hud.toast(out.text, 'good');
     setTimeout(() => this.say(c, out.says), 1300);
-    this.clearDesk(c, takesGoods);
-    c.settle(takesGoods, mood, accept && k !== 'credit');
-    this.hud.showPink(true);
+    this.clearDesk();
+    c.settle(true, 'happy', k !== 'credit');
     this.hud.refresh();
     this.store.persist();
   }
 
   /** Tidy the desk once they have gone: the note into the drawer, the screen back to idle. */
-  private clearDesk(c: Customer, _sold: boolean): void {
+  private clearDesk(): void {
     setTimeout(() => {
       this.shop.desk.note(null);
       this.shop.desk.terminal('idle');
@@ -495,7 +539,6 @@ export class Game {
       this.receipt.hide();
       if (!this.talk) this.hud.subtitle(null);
     }, 2600);
-    void c;
   }
 
   /** A customer's short reply, spoken and subtitled. */
@@ -507,55 +550,43 @@ export class Game {
     setTimeout(() => (c.human.pose.talking = false), 2500);
   }
 
-  // ------------------------------------------------------------------ closing time
-
-  private closeDay(): void {
-    this.closing = true;
-    const summary = this.store.closeDay();
-    this.store.persist();
-    this.sfx.success();
-    this.queueModal(() =>
-      showDaySummary(this.ui, summary, () => {
-        this.store.newDay();
-        this.closing = false;
-        this.spawnT = 7;
-        this.hud.refresh();
-        this.store.persist();
-        this.hud.toast(`🌅 صباح الخير! يوم جديد — ${this.store.s.day}`, 'big');
-        this.closeModal();
-      }),
-    );
-  }
-
   // ------------------------------------------------------------------ the pink button
 
+  /** Save everything in the till, every time. A full jar grows the shop by itself. */
   private pressPink(): void {
-    if (!this.store || this.modal || this.decision.open) return;
+    if (!this.store || this.modal) return;
     this.sfx.unlock();
-    if (this.store.canUpgrade) {
-      this.store.upgrade();
-      const stage = this.store.s.stage;
-      this.sfx.level();
-      this.setStage(stage);
-      this.hud.refresh();
-      this.store.persist();
-      void this.voice.speak(`مبروك! صارت بقالتك ${STAGES[stage].name}.`, { gender: 'm', pitch: 1, rate: 1, key: 'sanad' });
-      this.queueModal(() => showUpgrade(this.ui, stage, () => this.closeModal()));
-      return;
-    }
     const moved = this.store.save();
     if (!moved) {
       this.hud.nudge();
-      this.hud.toast('الدرج فاضي. انتظر زبون يدفع، بعدين ادّخر 💗');
+      this.hud.toast('الدرج فاضي. لما يدفع زبون، اضغط وادّخر 💗');
       return;
     }
     this.sfx.save();
     const r = this.hud.saveBtn.getBoundingClientRect();
     this.hud.pop(r.left + r.width / 2, r.top - 10, moved);
     const cost = this.store.nextCost;
-    if (this.store.canUpgrade) this.hud.toast('🎉 الادخار يكفي! اضغط الزر الوردي عشان تطوّر البقالة.', 'good');
-    else if (cost !== null) this.hud.toast(`💗 ادّخرت ${fmt(moved)}. باقي ${fmt(Math.ceil(cost - this.store.s.savings))} وتصير ${STAGES[this.store.s.stage + 1].name}.`, 'good');
+    if (this.store.canUpgrade) {
+      this.hud.toast(`🎉 ادّخرت ${fmt(moved)}، وكمل المبلغ! البقالة بتتطور.`, 'big');
+      this.pendingUpgrade = true;
+    } else if (cost !== null) this.hud.toast(`💗 ادّخرت ${fmt(moved)}. بالادخار ${fmt(Math.floor(this.store.s.savings))}، باقي ${fmt(Math.ceil(cost - this.store.s.savings))} وتصير ${STAGES[this.store.s.stage + 1].name}.`, 'good');
+    else this.hud.toast(`💗 ادّخرت ${fmt(moved)}. بالادخار ${fmt(Math.floor(this.store.s.savings))}.`, 'good');
+    this.hud.refresh();
     this.store.persist();
+  }
+
+  /** The savings reached the goal: the shop moves up a stage (maybe more than one). */
+  private doUpgrade(): void {
+    this.pendingUpgrade = false;
+    if (!this.store.upgrade()) return;
+    while (this.store.canUpgrade) this.store.upgrade();
+    const stage = this.store.s.stage;
+    this.sfx.level();
+    this.setStage(stage);
+    this.hud.refresh();
+    this.store.persist();
+    void this.voice.speak(`مبروك! صارت بقالتك ${STAGES[stage].name}.`, { gender: 'm', pitch: 1, rate: 1, key: 'sanad' });
+    this.queueModal(() => showUpgrade(this.ui, stage, () => this.closeModal()));
   }
 
   // ------------------------------------------------------------------ cards

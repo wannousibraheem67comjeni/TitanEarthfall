@@ -155,11 +155,15 @@ const labelMat = (p: Product, w?: number, h?: number, rough = 0.45, metal = 0) =
 // Geometry helpers
 // ---------------------------------------------------------------------------
 
+/** While building the shelf versions of the goods, curves use fewer segments. */
+let LO = false;
+const seg = (n: number) => (LO ? Math.max(4, Math.round(n * 0.4)) : n);
+
 /** A lathe from (radius, height) pairs, base at y = 0. */
-function lathe(points: [number, number][], seg = 18): LatheGeometry {
+function lathe(points: [number, number][], n = 18): LatheGeometry {
   return new LatheGeometry(
     points.map(([r, y]) => new Vector2(r, y)),
-    seg,
+    seg(n),
   );
 }
 
@@ -172,7 +176,7 @@ function boxAt(w: number, h: number, d: number, segs = 1): BoxGeometry {
 
 /** Puff a box into a pillow pack: sealed edges at top and bottom, bulging in the middle. */
 function pillow(w: number, h: number, d: number): BufferGeometry {
-  const g = new BoxGeometry(w, h, d, 10, 14, 2);
+  const g = new BoxGeometry(w, h, d, seg(10), seg(14), 2);
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i) / (w / 2);
@@ -190,7 +194,7 @@ function pillow(w: number, h: number, d: number): BufferGeometry {
 
 /** A soft sack: rounded corners, bellied sides. */
 function sack(w: number, h: number, d: number): BufferGeometry {
-  const g = new BoxGeometry(w, h, d, 8, 10, 6);
+  const g = new BoxGeometry(w, h, d, seg(8), seg(10), seg(6));
   const pos = g.attributes.position;
   const v = new Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -237,8 +241,8 @@ function model(p: Product): Model {
         [0.013, 0.188],
         [0.012, H],
       ]);
-      const label = new CylinderGeometry(0.0325, 0.0325, 0.05, 18, 1, true).translate(0, 0.11, 0);
-      const cap = new CylinderGeometry(0.014, 0.014, 0.014, 12).translate(0, H + 0.006, 0);
+      const label = new CylinderGeometry(0.0325, 0.0325, 0.05, seg(18), 1, true).translate(0, 0.11, 0);
+      const cap = new CylinderGeometry(0.014, 0.014, 0.014, seg(12)).translate(0, H + 0.006, 0);
       return { parts: [{ geometry: body, material: clearPlastic() }, { geometry: label, material: labelMat(p, 512, 128) }, { geometry: cap, material: mat('#1f6fd0', 0.4) }], size: new Vector3(0.065, H + 0.013, 0.065) };
     }
     case 'bottle': {
@@ -255,8 +259,8 @@ function model(p: Product): Model {
         [r * 0.34, tall],
       ]);
       body.scale(1, 1, p.id === 'oil' ? 1 : 0.62);
-      const label = new CylinderGeometry(r * 1.01, r * 1.01, tall * 0.42, 18, 1, true).translate(0, tall * 0.38, 0).scale(1, 1, p.id === 'oil' ? 1 : 0.62);
-      const cap = new CylinderGeometry(r * 0.36, r * 0.36, 0.025, 12).translate(0, tall + 0.012, 0);
+      const label = new CylinderGeometry(r * 1.01, r * 1.01, tall * 0.42, seg(18), 1, true).translate(0, tall * 0.38, 0).scale(1, 1, p.id === 'oil' ? 1 : 0.62);
+      const cap = new CylinderGeometry(r * 0.36, r * 0.36, 0.025, seg(12)).translate(0, tall + 0.012, 0);
       const bodyMat = p.id === 'oil' ? mat('#e2b33a', 0.08, 0, { opacity: 0.8 }) : mat(c, 0.35);
       return { parts: [{ geometry: body, material: bodyMat }, { geometry: label, material: labelMat(p, 512, 256) }, { geometry: cap, material: mat(p.id === 'oil' ? '#c62828' : '#f4f4f4', 0.4) }], size: new Vector3(r * 2, tall + 0.025, r * 2 * (p.id === 'oil' ? 1 : 0.62)) };
     }
@@ -272,25 +276,25 @@ function model(p: Product): Model {
         [r * 0.4, H],
       ]);
       body.scale(1, 1, 0.9);
-      const label = new CylinderGeometry(r * 1.01, r * 1.01, H * 0.4, 18, 1, true).translate(0, H * 0.4, 0).scale(1, 1, 0.9);
-      const cap = new CylinderGeometry(r * 0.42, r * 0.42, 0.02, 12).translate(0, H + 0.01, 0);
+      const label = new CylinderGeometry(r * 1.01, r * 1.01, H * 0.4, seg(18), 1, true).translate(0, H * 0.4, 0).scale(1, 1, 0.9);
+      const cap = new CylinderGeometry(r * 0.42, r * 0.42, 0.02, seg(12)).translate(0, H + 0.01, 0);
       return { parts: [{ geometry: body, material: mat('#f7f7f4', 0.4) }, { geometry: label, material: labelMat(p, 512, 256) }, { geometry: cap, material: mat(p.id === 'milk' ? '#1f6fd0' : '#2e9e5b', 0.4) }], size: new Vector3(r * 2, H + 0.02, r * 1.8) };
     }
     case 'can': {
       const H = 0.122;
-      const side = new CylinderGeometry(0.033, 0.033, H - 0.016, 20, 1, true).translate(0, H / 2, 0);
-      const ends = merge([new CylinderGeometry(0.028, 0.033, 0.008, 20).translate(0, H - 0.004, 0), new CylinderGeometry(0.033, 0.028, 0.008, 20).translate(0, 0.004, 0)]);
+      const side = new CylinderGeometry(0.033, 0.033, H - 0.016, seg(20), 1, true).translate(0, H / 2, 0);
+      const ends = merge([new CylinderGeometry(0.028, 0.033, 0.008, seg(20)).translate(0, H - 0.004, 0), new CylinderGeometry(0.033, 0.028, 0.008, seg(20)).translate(0, 0.004, 0)]);
       return { parts: [{ geometry: side, material: labelMat(p, 512, 256, 0.3, 0.5) }, { geometry: ends, material: mat('#c9ccd0', 0.25, 1) }], size: new Vector3(0.066, H, 0.066) };
     }
     case 'tin': {
       const H = 0.045;
-      const side = new CylinderGeometry(0.043, 0.043, H - 0.006, 20, 1, true).translate(0, H / 2, 0);
-      const ends = merge([new CylinderGeometry(0.041, 0.043, 0.004, 20).translate(0, H - 0.002, 0), new CylinderGeometry(0.043, 0.041, 0.004, 20).translate(0, 0.002, 0)]);
+      const side = new CylinderGeometry(0.043, 0.043, H - 0.006, seg(20), 1, true).translate(0, H / 2, 0);
+      const ends = merge([new CylinderGeometry(0.041, 0.043, 0.004, seg(20)).translate(0, H - 0.002, 0), new CylinderGeometry(0.043, 0.041, 0.004, seg(20)).translate(0, 0.002, 0)]);
       return { parts: [{ geometry: side, material: labelMat(p, 512, 128, 0.35, 0.3) }, { geometry: ends, material: mat('#c9ccd0', 0.25, 1) }], size: new Vector3(0.086, H, 0.086) };
     }
     case 'carton': {
       const box = boxAt(0.062, 0.105, 0.04);
-      const straw = new CylinderGeometry(0.0025, 0.0025, 0.06, 6).rotateZ(0.25).translate(0.012, 0.125, -0.008);
+      const straw = new CylinderGeometry(0.0025, 0.0025, 0.06, seg(6)).rotateZ(0.25).translate(0.012, 0.125, -0.008);
       const side = mat(shade(c, -0.05), 0.5);
       return { parts: [{ geometry: box, material: [side, side, mat('#f2f2ee', 0.5), side, labelMat(p, 256, 384), labelMat(p, 256, 384)] }, { geometry: straw, material: mat('#ffffff', 0.4) }], size: new Vector3(0.062, 0.13, 0.04) };
     }
@@ -321,8 +325,8 @@ function model(p: Product): Model {
     }
     case 'bread': {
       const discs: BufferGeometry[] = [];
-      for (let i = 0; i < 5; i++) discs.push(new CylinderGeometry(0.105, 0.105, 0.008, 22).translate(0, 0.006 + i * 0.008, 0));
-      const bag = new CylinderGeometry(0.112, 0.112, 0.05, 22).translate(0, 0.025, 0);
+      for (let i = 0; i < 5; i++) discs.push(new CylinderGeometry(0.105, 0.105, 0.008, seg(22)).translate(0, 0.006 + i * 0.008, 0));
+      const bag = new CylinderGeometry(0.112, 0.112, 0.05, seg(22)).translate(0, 0.025, 0);
       const label = boxAt(0.09, 0.002, 0.05).translate(0, 0.05, 0);
       return { parts: [{ geometry: merge(discs), material: mat('#dcb27a', 0.85) }, { geometry: bag, material: film() }, { geometry: label, material: labelMat(p, 256, 128) }], size: new Vector3(0.22, 0.052, 0.22) };
     }
@@ -336,12 +340,12 @@ function model(p: Product): Model {
     case 'eggs': {
       const tray = boxAt(0.3, 0.035, 0.3);
       const eggs: BufferGeometry[] = [];
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) eggs.push(new SphereGeometry(0.021, 8, 6).scale(1, 1.25, 1).translate(-0.125 + i * 0.05, 0.045, -0.1 + j * 0.05));
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) eggs.push(new SphereGeometry(0.021, seg(8), seg(6)).scale(1, 1.25, 1).translate(-0.125 + i * 0.05, 0.045, -0.1 + j * 0.05));
       return { parts: [{ geometry: tray, material: mat('#a9a49a', 0.95) }, { geometry: merge(eggs), material: mat('#e9cfa9', 0.55) }], size: new Vector3(0.3, 0.07, 0.3) };
     }
     case 'tray': {
       const tray = boxAt(0.24, 0.025, 0.17);
-      const meat = p.id === 'fish' ? new SphereGeometry(0.1, 16, 8).scale(1, 0.2, 0.35).translate(0, 0.03, 0) : boxAt(0.19, 0.03, 0.12, 3).translate(0, 0.018, 0);
+      const meat = p.id === 'fish' ? new SphereGeometry(0.1, seg(16), seg(8)).scale(1, 0.2, 0.35).translate(0, 0.03, 0) : boxAt(0.19, 0.03, 0.12, 3).translate(0, 0.018, 0);
       const wrap = boxAt(0.242, 0.055, 0.172);
       const sticker = boxAt(0.08, 0.002, 0.05).translate(0.05, 0.055, 0.03);
       return { parts: [{ geometry: tray, material: mat('#f4f4f2', 0.6) }, { geometry: meat, material: p.id === 'fish' ? mat('#9fb4bf', 0.25, 0.4) : mat('#a8322b', 0.55) }, { geometry: wrap, material: film() }, { geometry: sticker, material: labelMat(p, 256, 160) }], size: new Vector3(0.24, 0.056, 0.17) };
@@ -356,8 +360,8 @@ function model(p: Product): Model {
         [-0.005, r * 2.6, 0],
         [0.045, r, 0.04],
       ];
-      for (const [x, y, z] of spots) balls.push(new SphereGeometry(r, 14, 10).scale(1, 0.9, 1).translate(x, y, z));
-      const bag = new SphereGeometry(0.09, 14, 10).scale(1, 0.9, 1).translate(0, 0.065, 0);
+      for (const [x, y, z] of spots) balls.push(new SphereGeometry(r, seg(14), seg(10)).scale(1, 0.9, 1).translate(x, y, z));
+      const bag = new SphereGeometry(0.09, seg(14), seg(10)).scale(1, 0.9, 1).translate(0, 0.065, 0);
       return { parts: [{ geometry: merge(balls), material: mat(c, 0.35) }, { geometry: bag, material: film() }], size: new Vector3(0.18, 0.16, 0.18) };
     }
     case 'jar': {
@@ -369,8 +373,8 @@ function model(p: Product): Model {
         [0.036, 0.11],
         [0.034, 0.115],
       ]);
-      const lid = new CylinderGeometry(0.037, 0.037, 0.02, 20).translate(0, 0.124, 0);
-      const label = new CylinderGeometry(0.0425, 0.0425, 0.05, 20, 1, true).translate(0, 0.055, 0);
+      const lid = new CylinderGeometry(0.037, 0.037, 0.02, seg(20)).translate(0, 0.124, 0);
+      const label = new CylinderGeometry(0.0425, 0.0425, 0.05, seg(20), 1, true).translate(0, 0.055, 0);
       return { parts: [{ geometry: body, material: mat('#c97a10', 0.08, 0, { opacity: 0.88 }) }, { geometry: lid, material: mat('#d4a73c', 0.3, 1) }, { geometry: label, material: labelMat(p, 512, 192) }], size: new Vector3(0.085, 0.134, 0.085) };
     }
     case 'perfume': {
@@ -385,7 +389,7 @@ function model(p: Product): Model {
     }
     case 'folded': {
       const body = boxAt(0.28, 0.06, 0.22, 2);
-      const collar = new CylinderGeometry(0.05, 0.05, 0.01, 16, 1, true, 0, Math.PI).rotateY(Math.PI / 2).translate(0, 0.062, -0.08);
+      const collar = new CylinderGeometry(0.05, 0.05, 0.01, seg(16), 1, true, 0, Math.PI).rotateY(Math.PI / 2).translate(0, 0.062, -0.08);
       return { parts: [{ geometry: body, material: mat(c, 0.85) }, { geometry: collar, material: mat(shade(c, -0.2), 0.85, 0, { side: true }) }], size: new Vector3(0.28, 0.07, 0.22) };
     }
     case 'bigbox': {
@@ -397,9 +401,9 @@ function model(p: Product): Model {
     }
     case 'case': {
       const bottles: BufferGeometry[] = [];
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) bottles.push(new CylinderGeometry(0.031, 0.031, 0.2, 10).translate(-0.165 + i * 0.066, 0.1, -0.1 + j * 0.066));
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) bottles.push(new CylinderGeometry(0.031, 0.031, 0.2, seg(10)).translate(-0.165 + i * 0.066, 0.1, -0.1 + j * 0.066));
       const caps: BufferGeometry[] = [];
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) caps.push(new CylinderGeometry(0.013, 0.013, 0.014, 8).translate(-0.165 + i * 0.066, 0.207, -0.1 + j * 0.066));
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) caps.push(new CylinderGeometry(0.013, 0.013, 0.014, seg(8)).translate(-0.165 + i * 0.066, 0.207, -0.1 + j * 0.066));
       const wrap = boxAt(0.4, 0.215, 0.27);
       const band = boxAt(0.402, 0.06, 0.272).translate(0, 0.07, 0);
       return {
@@ -418,8 +422,8 @@ function model(p: Product): Model {
       return { parts: [{ geometry: g, material: mat(c, 0.6) }, { geometry: paper, material: mat('#fbfbf8', 0.8) }], size: new Vector3(0.32, 0.03, 0.24) };
     }
     case 'chicken': {
-      const body = new SphereGeometry(0.1, 16, 12).scale(1, 0.55, 0.7).translate(0, 0.055, 0);
-      const bag = new SphereGeometry(0.106, 16, 12).scale(1, 0.6, 0.74).translate(0, 0.058, 0);
+      const body = new SphereGeometry(0.1, seg(16), seg(12)).scale(1, 0.55, 0.7).translate(0, 0.055, 0);
+      const bag = new SphereGeometry(0.106, seg(16), seg(12)).scale(1, 0.6, 0.74).translate(0, 0.058, 0);
       const label = boxAt(0.1, 0.002, 0.07).translate(0, 0.118, 0);
       return { parts: [{ geometry: body, material: mat('#ecd3b4', 0.45) }, { geometry: bag, material: mat('#ffffff', 0.15, 0, { opacity: 0.35 }) }, { geometry: label, material: labelMat(p, 256, 176) }], size: new Vector3(0.2, 0.12, 0.15) };
     }
@@ -432,9 +436,19 @@ function model(p: Product): Model {
 
 const models = new Map<string, Model>();
 
-export function productModel(p: Product): Model {
-  let m = models.get(p.id);
-  if (!m) models.set(p.id, (m = model(p)));
+/** A product's model: full detail for the desk and the hands, lighter (`lo`) for the thousands on shelves. */
+export function productModel(p: Product, lo = false): Model {
+  const key = lo ? `${p.id}:lo` : p.id;
+  let m = models.get(key);
+  if (!m) {
+    LO = lo;
+    try {
+      m = model(p);
+    } finally {
+      LO = false;
+    }
+    models.set(key, m);
+  }
   return m;
 }
 
@@ -467,15 +481,16 @@ export class Stocker {
     return n;
   }
 
-  build(shadows: boolean): Group {
+  build(_shadows: boolean): Group {
     const g = new Group();
     g.name = 'stock';
     for (const [p, list] of this.placed) {
-      for (const part of productModel(p).parts) {
+      for (const part of productModel(p, true).parts) {
         const im = new InstancedMesh(part.geometry, part.material, list.length);
         list.forEach((m, i) => im.setMatrixAt(i, m));
         im.instanceMatrix.needsUpdate = true;
-        im.castShadow = shadows && list.length < 400;
+        // Goods on shelves are too small to throw shadows worth their cost.
+        im.castShadow = false;
         im.receiveShadow = true;
         im.computeBoundingSphere();
         g.add(im);

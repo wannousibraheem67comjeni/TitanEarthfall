@@ -133,32 +133,31 @@ export interface Stage {
   name: string;
   /** The sign over the door. */
   sign: string;
-  /** Real seconds between customers on an average hour, at two and a half stars. */
-  spawn: number;
+  /** How many customers are usually in the shop at once (a quiet spell has fewer, a rush more). */
+  crowd: number;
+  /** Extra cashiers at their own tills, beside the shopkeeper's desk. */
+  lanes: number;
   /** Different products in a basket, and how many of each. */
   items: [number, number];
   qty: [number, number];
   /** Savings needed to move up to the next stage (null at the top). */
   next: number | null;
-  /** Income every shop hour from branches and contracts, beyond the till. */
+  /** Income every minute from branches and contracts, beyond the tills. */
   passive: number;
   /** What the stage adds, in a line. */
   adds: string;
 }
 
 export const STAGES: Stage[] = [
-  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', spawn: 40, items: [1, 3], qty: [1, 3], next: 30, passive: 0, adds: 'رف واحد وثلاجة صغيرة. زبون كل فترة.' },
-  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', spawn: 34, items: [1, 3], qty: [1, 3], next: 95, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم وبيض.' },
-  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', spawn: 30, items: [2, 4], qty: [1, 3], next: 380, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
-  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', spawn: 27, items: [2, 5], qty: [1, 3], next: 700, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة وبطاقات شحن.' },
-  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', spawn: 24, items: [2, 5], qty: [1, 3], next: 1900, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب.' },
-  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', spawn: 21, items: [2, 5], qty: [1, 2], next: 7000, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية.' },
-  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', spawn: 20, items: [2, 4], qty: [5, 30], next: 125000, passive: 6000, adds: 'فروع بكلباء وخورفكان والفجيرة تجيب دخل كل ساعة، وطلبات جملة.' },
-  { name: 'مجموعة قابضة', sign: 'مجموعة شرق الإمارات القابضة', spawn: 18, items: [1, 2], qty: [1, 3], next: null, passive: 350000, adds: 'عقود توريد للمدارس والفنادق وشركات الطيران.' },
+  { name: 'كشك صغير', sign: 'بقالة شرق الإمارات', crowd: 2, lanes: 0, items: [1, 3], qty: [1, 3], next: 140, passive: 0, adds: 'رف واحد وثلاجة صغيرة. زبون أو زبونين كل مرة.' },
+  { name: 'بقالة صغيرة', sign: 'بقالة شرق الإمارات', crowd: 3, lanes: 0, items: [1, 3], qty: [1, 3], next: 450, passive: 0, adds: 'رفين وثلاجة مشروبات وآيس كريم وبيض. زبونين ثلاثة.' },
+  { name: 'بقالة الحي', sign: 'بقالة شرق الإمارات', crowd: 4, lanes: 0, items: [2, 4], qty: [1, 3], next: 1600, passive: 0, adds: 'رز وزيت وتمر ودجاج، وزباين أكثر.' },
+  { name: 'ميني ماركت', sign: 'ميني ماركت شرق الإمارات', crowd: 7, lanes: 1, items: [2, 5], qty: [1, 3], next: 7000, passive: 0, adds: 'خضار وفواكه ومنظفات وقهوة، وكاشير ثاني يساعدك.' },
+  { name: 'سوبرماركت', sign: 'سوبرماركت شرق الإمارات', crowd: 14, lanes: 2, items: [2, 5], qty: [1, 3], next: 30000, passive: 0, adds: 'لحم وسمك وعسل وعطور وألعاب. عشرات الزباين وكاشيرين.' },
+  { name: 'هايبرماركت', sign: 'هايبرماركت شرق الإمارات', crowd: 22, lanes: 3, items: [2, 5], qty: [1, 2], next: 180000, passive: 0, adds: 'إلكترونيات وملابس وأدوات منزلية، وثلاث كاشيرات.' },
+  { name: 'سلسلة فروع', sign: 'فروع شرق الإمارات', crowd: 30, lanes: 4, items: [2, 4], qty: [5, 30], next: 1300000, passive: 8000, adds: 'فروع بكلباء وخورفكان والفجيرة تجيب دخل كل دقيقة، وطلبات جملة.' },
+  { name: 'مجموعة قابضة', sign: 'مجموعة شرق الإمارات القابضة', crowd: 40, lanes: 5, items: [1, 2], qty: [1, 3], next: null, passive: 120000, adds: 'عقود توريد للمدارس والفنادق وشركات الطيران.' },
 ];
-
-/** Savings earn this fraction once a day, when the shop closes. */
-export const DAILY_INTEREST = 0.02;
 
 export function stocked(stage: number): Product[] {
   return PRODUCTS.filter((p) => p.stage <= stage);
@@ -315,15 +314,15 @@ function roundHalf(x: number): number {
   return Math.max(0.5, Math.round(x * 2) / 2);
 }
 
-/** What accepting the bill adds to (or takes from) the drawer right now. */
+/** What taking the bill puts in the till: everything the customer pays (nothing yet on credit). */
 export function acceptGain(b: Bill): number {
   if (b.kind === 'repay') return b.debt ?? 0;
-  if (b.kind === 'fake' || b.kind === 'credit') return -b.cost;
-  return Math.round((b.pays - b.cost) * 100) / 100;
+  if (b.kind === 'credit') return 0;
+  return Math.round((b.pay === 'card' ? b.total : b.pays) * 100) / 100;
 }
 
 export interface Outcome {
-  /** Drawer change. */
+  /** Till change. */
   money: number;
   /** Stars change (reputation 0–5). */
   rep: number;
@@ -336,10 +335,6 @@ export interface Outcome {
   debt?: number;
 }
 
-/**
- * Resolve a decision. `trust` (0–1) is how likely this customer is to pay a debt back;
- * `roll` (0–1) settles the bluffs that fold when refused.
- */
 /** Who is at the counter, for the right word endings. */
 export interface Who {
   /** The customer is a woman. */
@@ -348,63 +343,22 @@ export interface Who {
   keeperShe?: boolean;
 }
 
-export function decide(b: Bill, accept: boolean, roll: number, who: Who = {}): Outcome {
-  const gain = acceptGain(b);
-  const profit = (m: number) => (m >= 0 ? `ربحك ${fmt(m)}` : `خسرت ${fmt(-m)}`);
-  // x(): about the customer; k(): the customer talking to the shopkeeper (Emirati «ج» for her).
+/** Taking a bill: the money goes in the till, the customer goes home happy. */
+export function decide(b: Bill, who: Who = {}): Outcome {
+  const money = acceptGain(b);
   const x = (m: string, f: string) => (who.she ? f : m);
   const k = (m: string, f: string) => (who.keeperShe ? f : m);
-  if (b.kind === 'repay') return { money: b.debt ?? 0, rep: 0.1, text: `${x('سدّد دينه', 'سدّدت دينها')}: +${fmt(b.debt ?? 0)} 🤝`, good: true, says: k('الله يجزاك خير، ما قصرت معي.', 'الله يجزاج خير، ما قصرتي معي.') };
-  if (accept) {
-    switch (b.kind) {
-      case 'normal':
-      case 'big':
-        return { money: gain, rep: 0.05, text: `✓ ${profit(gain)}`, good: gain >= 0, says: k('مشكور، الله يبارك لك.', 'مشكورة، الله يبارك لج.') };
-      case 'discount':
-        return { money: gain, rep: 0.15, text: `خصم ${b.discount}٪ — ${profit(gain)}`, good: gain >= 0, says: k('الله يخليك، أنا من زباينك على طول!', 'الله يخليج، أنا من زباينج على طول!') };
-      case 'short':
-        return { money: gain, rep: 0.1, text: `بعت بأقل — ${profit(gain)}`, good: gain >= 0, says: k('جزاك الله خير، ما ننساها لك.', 'جزاج الله خير، ما ننساها لج.') };
-      case 'kid':
-        return { money: gain, rep: 0.3, text: `فرّحت الياهل 😊 — ${profit(gain)}`, good: true, says: `شكراً ${k('عمو', 'خالة')}! 😄` };
-      case 'trick':
-        return { money: gain, rep: 0, text: `${x('صدّقته', 'صدّقتها')}، والسعر الصح ${fmt(b.claim!.product.price)} — ${profit(gain)}`, good: false, says: k('هههه مشكور!', 'هههه مشكورة!') };
-      case 'coupon':
-        return { money: gain, rep: 0, text: `الكوبون كان منتهي! — ${profit(gain)}`, good: false, says: 'شكراً!' };
-      case 'fake':
-        return { money: gain, rep: 0, text: `⚠️ الورقة طلعت مزورة! خسرت البضاعة (${fmt(b.cost)})`, good: false, says: '…' };
-      case 'credit':
-        return { money: gain, rep: 0.1, text: `سجلت ${x('عليه', 'عليها')} دين: ${fmt(b.total)} — إذا ${x('سدّد', 'سدّدت')} بيرجع لك`, good: true, says: k('الله يخليك، أسدد لك قريب إن شاء الله.', 'الله يخليج، أسدد لج قريب إن شاء الله.'), debt: b.total };
-    }
-  }
-  // Refused.
-  const full = Math.round((b.total - b.cost) * 100) / 100;
   switch (b.kind) {
-    case 'normal':
-    case 'big':
-      return { money: 0, rep: -0.4, text: x('رفضت فاتورة سليمة! الزبون زعل وطلع.', 'رفضت فاتورة سليمة! الزبونة زعلت وطلعت.'), good: false, says: k('ليش؟! خلاص، بروح لغيرك.', 'ليش؟! خلاص، بروح لغيرج.') };
-    case 'discount':
-      if (roll < 0.5) return { money: full, rep: 0, text: `ما في خصم؟ ${x('دفع', 'دفعت')} كامل — ربحك ${fmt(full)}`, good: true, says: k('طيب طيب، خذ حسابك كامل.', 'طيب طيب، خذي حسابج كامل.') };
-      return { money: 0, rep: -0.05, text: x('ما رضي بدون خصم وطلع.', 'ما رضيت بدون خصم وطلعت.'), good: false, says: 'خلاص، مرة ثانية.' };
-    case 'short':
-      return { money: 0, rep: -0.1, text: x('ما كانت فلوسه تكفي، وطلع.', 'ما كانت فلوسها تكفي، وطلعت.'), good: false, says: k('معذور، الله يرزقك.', 'معذورة، الله يرزقج.') };
+    case 'repay':
+      return { money, rep: 0.1, text: `${x('سدّد دينه', 'سدّدت دينها')}: +${fmt(money)} بالدرج 🤝`, good: true, says: k('الله يجزاك خير، ما قصرت معي.', 'الله يجزاج خير، ما قصرتي معي.') };
     case 'kid':
-      return { money: 0, rep: -0.3, text: 'الياهل طلع زعلان 😢', good: false, says: '😢' };
-    case 'trick':
-      if (roll < 0.6) return { money: full, rep: 0, text: `${x('كشفته! دفع', 'كشفتها! دفعت')} السعر الصح — ربحك ${fmt(full)} 👏`, good: true, says: k('هه… طيب، خذ السعر الصح.', 'هه… طيب، خذي السعر الصح.') };
-      return { money: 0, rep: 0, text: `كشفت الحيلة، ${x('وطلع بدون ما يشتري', 'وطلعت بدون ما تشتري')}. قرار صح 👏`, good: true, says: 'خلاص خلاص.' };
-    case 'coupon':
-      if (roll < 0.7) return { money: full, rep: 0, text: `الكوبون منتهي، ${x('فدفع', 'فدفعت')} كامل — ربحك ${fmt(full)} 👏`, good: true, says: x('آسف، ما انتبهت للتاريخ.', 'آسفة، ما انتبهت للتاريخ.') };
-      return { money: 0, rep: 0, text: `الكوبون منتهي، ${x('وطلع', 'وطلعت')}. قرار صح 👏`, good: true, says: 'أوكي.' };
-    case 'fake':
-      return { money: 0, rep: 0.1, text: 'صح! الورقة كانت مزورة. عينك صقر 🦅', good: true, says: '…' };
+      return { money, rep: 0.3, text: `فرّحت الياهل 😊 — +${fmt(money)} بالدرج`, good: true, says: `شكراً ${k('عمو', 'خالة')}! 😄` };
     case 'credit':
-      return { money: 0, rep: -0.1, text: `ما سجلت ${x('عليه دين، وطلع', 'عليها دين، وطلعت')}.`, good: true, says: k('ولا يهمك.', 'ولا يهمج.') };
+      return { money: 0, rep: 0.1, text: `سجلت ${x('عليه', 'عليها')} دين: ${fmt(b.total)} — إذا ${x('سدّد', 'سدّدت')} تنزل بالدرج`, good: true, says: k('الله يخليك، أسدد لك قريب إن شاء الله.', 'الله يخليج، أسدد لج قريب إن شاء الله.'), debt: b.total };
+    default:
+      return { money, rep: 0.05, text: `✓ +${fmt(money)} بالدرج`, good: true, says: k('مشكور، الله يبارك لك.', 'مشكورة، الله يبارك لج.') };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Wealth
-// ---------------------------------------------------------------------------
 
 export const LADDER: { at: number; title: [string, string] }[] = [
   { at: 0, title: ['بقال مبتدئ', 'بقالة مبتدئة'] },

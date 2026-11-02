@@ -9,7 +9,6 @@
 import {
   BoxGeometry,
   CanvasTexture,
-  CircleGeometry,
   CylinderGeometry,
   Group,
   type Material,
@@ -30,13 +29,22 @@ import { Batcher, worldBox } from './batch';
 import { buildDesk, type Desk } from './desk';
 import { mat, productModel, Stocker } from './products';
 import { buildStreet, type Street } from './street';
-import { BODY_FONT, brushed, cached, canvas, ceilingTiles, clockFace, DISPLAY_FONT, doorSticker, hoursSticker, paintedWall, porcelainFloor, poster, quartz, signTexture, toTexture, wood, type Surface } from './textures';
+import { Human } from './humans';
+import type { Look } from './look';
+import { BODY_FONT, brushed, cached, canvas, ceilingTiles, DISPLAY_FONT, doorSticker, paintedWall, porcelainFloor, poster, quartz, signTexture, toTexture, wood, type Surface } from './textures';
 
 export interface Pick {
   /** Where to stand, which way to face, and how high the shelf is (for the reach). */
   at: Vector3;
   face: number;
   shelfY: number;
+}
+
+export interface Lane {
+  x: number;
+  /** Where the customer being served stands, and the line behind. */
+  spot: Vector3;
+  queue(i: number): Vector3;
 }
 
 export interface ShopLayout {
@@ -59,6 +67,8 @@ export interface ShopLayout {
   frontZ: number;
   backZ: number;
   picks: Pick[];
+  /** Checkouts: 0 is the shopkeeper's desk; the rest have their own cashiers. */
+  lanes: Lane[];
   camera: { pos: Vector3; look: Vector3 };
 }
 
@@ -76,7 +86,8 @@ export interface Shop {
   desk: Desk;
   street: Street;
   doors: Door[];
-  clockHands: { hour: Object3D; minute: Object3D };
+  /** The other cashiers, one per extra lane (lane k has cashiers[k − 1]). */
+  cashiers: Human[];
   /** Lights that stay on day and night. */
   lights: (PointLight | SpotLight)[];
   update(dt: number, minute: number, night: number, people: Vector3[]): void;
@@ -212,7 +223,8 @@ function shelfRun(b: Batcher, stock: Stocker, xBack: number, z0: number, z1: num
       if (s.y > room || s.x > len * 0.6) continue;
       const facings = Math.max(1, Math.min(Math.floor((z1 - 0.04 - z) / (s.x + 0.008)), Math.round(0.34 / (s.x + 0.008)) + (k % 3)));
       if (facings < 1 || z + s.x > z1 - 0.04) break;
-      const rows = Math.max(1, Math.min(3, Math.floor((depth - 0.04) / (s.z + 0.006))));
+      // Two rows deep: the ones behind are never seen.
+      const rows = Math.max(1, Math.min(2, Math.floor((depth - 0.04) / (s.z + 0.006))));
       for (let f = 0; f < facings; f++)
         for (let r = 0; r < rows; r++) {
           const x = xFront - side * (0.02 + s.z / 2 + r * (s.z + 0.006));
@@ -258,7 +270,7 @@ function fridge(b: Batcher, stock: Stocker, group: Group, xBack: number, z0: num
       const s = productModel(p).size;
       if (s.y > 0.33) continue;
       const n = Math.floor((W - 0.06) / (s.x + 0.006));
-      const rows = Math.min(4, Math.floor((D - 0.14) / (s.z + 0.006)));
+      const rows = Math.min(2, Math.floor((D - 0.14) / (s.z + 0.006)));
       for (let f = 0; f < n; f++)
         for (let r = 0; r < rows; r++) {
           const x = xFront - side * (0.07 + s.z / 2 + r * (s.z + 0.006));
@@ -390,22 +402,40 @@ function waterStack(stock: Stocker, b: Batcher, x: number, z: number, rows: numb
       }
 }
 
-function clockMesh(group: Group, x: number, y: number, z: number): { hour: Object3D; minute: Object3D } {
-  const face = new Mesh(new CircleGeometry(0.17, 40), new MeshStandardMaterial({ map: clockFace(), roughness: 0.3 }));
-  face.position.set(x, y, z);
-  group.add(face);
-  const rim = new Mesh(new TorusGeometry(0.17, 0.012, 8, 40), mat('#2b2b2e', 0.4, 0.5));
-  rim.position.set(x, y, z);
-  group.add(rim);
-  const hand = (len: number, wdt: number) => {
-    const pivot = new Object3D();
-    pivot.position.set(x, y, z + 0.006);
-    const m = new Mesh(new BoxGeometry(wdt, len, 0.004).translate(0, len / 2 - 0.02, 0), mat('#151515', 0.5));
-    pivot.add(m);
-    group.add(pivot);
-    return pivot;
-  };
-  return { hour: hand(0.09, 0.012), minute: hand(0.135, 0.008) };
+/** A checkout counter: a belt toward the customer, a till screen for the cashier, a lane number on a pole. */
+function checkout(b: Batcher, group: Group, x: number, deskZ: number, top: number, number: number): void {
+  const W = 1.25;
+  const D = 0.6;
+  b.boxMinMax(x - W / 2, 0, deskZ - D / 2, x + W / 2, top - 0.03, deskZ + D / 2, mat('#f1f1ef', 0.45), 1, 1);
+  b.boxMinMax(x - W / 2 - 0.02, top - 0.03, deskZ - D / 2 - 0.02, x + W / 2 + 0.02, top, deskZ + D / 2 + 0.02, mat('#d9dcdf', 0.3, 0.4), 1, 1);
+  b.boxMinMax(x - W / 2 + 0.06, top, deskZ - D / 2 + 0.06, x + W / 2 - 0.06, top + 0.01, deskZ - 0.02, mat('#1d1e21', 0.85), 1, 1);
+  b.boxMinMax(x - W / 2, top - 0.25, deskZ - D / 2 - 0.006, x + W / 2, top - 0.13, deskZ - D / 2, mat('#e8508f', 0.4), 1, 1);
+  // Till screen facing the cashier.
+  b.boxMinMax(x + 0.3, top, deskZ + 0.05, x + 0.34, top + 0.18, deskZ + 0.09, mat('#202226', 0.4), 1, 1);
+  const scr = new Mesh(new PlaneGeometry(0.26, 0.18), mat('#2a9bd6', 0.3, 0, { emissive: '#1d6fa0' }));
+  scr.position.set(x + 0.32, top + 0.26, deskZ + 0.1);
+  scr.rotation.x = -0.3;
+  group.add(scr);
+  b.boxMinMax(x + 0.3, top + 0.16, deskZ + 0.06, x + 0.34, top + 0.36, deskZ + 0.1, mat('#202226', 0.4), 1, 1);
+  // Lane number on a pole.
+  b.cylinder(x - W / 2 + 0.05, top, deskZ - D / 2 + 0.06, 0.015, 1.1, mat('#c4c8cc', 0.3, 1));
+  const sign = new Mesh(new BoxGeometry(0.22, 0.22, 0.04), [mat('#eee'), mat('#eee'), mat('#eee'), mat('#eee'), new MeshStandardMaterial({ map: laneNumber(number), emissive: '#ffffff', emissiveMap: laneNumber(number), emissiveIntensity: 0.8 }), new MeshStandardMaterial({ map: laneNumber(number) })]);
+  sign.position.set(x - W / 2 + 0.05, top + 1.2, deskZ - D / 2 + 0.06);
+  group.add(sign);
+}
+
+function laneNumber(n: number): CanvasTexture {
+  return cached(`lane${n}`, () => {
+    const [c, ctx] = canvas(128, 128);
+    ctx.fillStyle = '#e8508f';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `600 84px ${BODY_FONT}`;
+    ctx.fillText(String(n), 64, 70);
+    return toTexture(c);
+  });
 }
 
 /** A wall-mounted split air conditioner with a ribbon fluttering in the draught. */
@@ -506,7 +536,8 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
   const deskFront = deskZ - 0.31;
   const doorW = stage <= 2 ? 0.95 : stage <= 4 ? 1.6 : 2.2;
   const frontZ = -d / 2 + (stage >= 3 ? 1.8 : 1.15);
-  const backZ = deskFront - 1.25;
+  // Bigger shops leave room in front of the tills for the lines.
+  const backZ = deskFront - (stage >= 3 ? 2.7 : 1.25);
   const spot = new Vector3(0, 0, deskFront - 0.3);
   const layout: ShopLayout = {
     w,
@@ -524,8 +555,19 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
     frontZ,
     backZ,
     picks: [],
+    lanes: [],
     camera: { pos: new Vector3(0, 1.6, deskZ + 0.62), look: new Vector3(0, 1.35, -d / 2) },
   };
+  // Checkouts: the desk in the middle, then cashiers alternating right and left of it.
+  const laneAt = (x: number): Lane => {
+    const at = new Vector3(x, 0, deskFront - 0.3);
+    return { x, spot: at, queue: (i) => new Vector3(x, 0, at.z - 0.85 * i) };
+  };
+  layout.lanes.push(laneAt(0));
+  for (let k = 1; k <= st.lanes; k++) {
+    const side = k % 2 ? 1 : -1;
+    layout.lanes.push(laneAt(side * (deskHalf + 1.55 + Math.floor((k - 1) / 2) * 2.3)));
+  }
 
   // ----------------------------------------------------------------- room
   const floorS = lux ? porcelainFloor('#f3efe8', true) : stage >= 3 ? porcelainFloor('#ece8e0') : porcelainFloor('#e6dccb');
@@ -609,10 +651,6 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
     pane.position.set(sgn * (a + (bEnd - a) / 2), 0.28 + (transom - 0.28) / 2, fz - 0.03);
     pane.renderOrder = 2;
     group.add(pane);
-    // Lettering on the glass.
-    const hours = new Mesh(new PlaneGeometry(0.8, 0.4), new MeshStandardMaterial({ map: hoursSticker(), transparent: true, roughness: 0.5 }));
-    hours.position.set(sgn * Math.min(bEnd - 0.6, a + 0.9), 1.55, fz - 0.025);
-    if (sgn > 0) group.add(hours);
   }
   // The door (one or two leaves of glass in aluminium, opening outwards).
   const doors: Door[] = [];
@@ -658,7 +696,6 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
   const sign = new Mesh(new BoxGeometry(signW, signW * 0.195, 0.06), [mat('#ffffff', 0.4), mat('#ffffff', 0.4), mat('#ffffff', 0.4), mat('#ffffff', 0.4), new MeshStandardMaterial({ map: signTexture(st.sign), emissive: '#ffffff', emissiveMap: signTexture(st.sign), emissiveIntensity: 0.35, roughness: 0.4 }), mat('#ffffff', 0.4)]);
   sign.position.set(-0.25 * (stage > 0 ? 1 : 0), Math.min(h - 0.3, transom + 0.18 + signW * 0.1), fz + 0.04);
   group.add(sign);
-  const clockHands = clockMesh(group, signW / 2 + 0.35 - 0.25 * (stage > 0 ? 1 : 0), sign.position.y, fz + 0.02);
   // Exit sign.
   const exit = new Mesh(new BoxGeometry(0.34, 0.14, 0.04), [mat('#eee'), mat('#eee'), mat('#eee'), mat('#eee'), new MeshStandardMaterial({ map: exitSign(), emissive: '#ffffff', emissiveMap: exitSign(), emissiveIntensity: 0.9 }), mat('#eee')]);
   exit.position.set(-signW / 2 - 0.45, sign.position.y, fz + 0.04);
@@ -709,7 +746,8 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
 
   // ----------------------------------------------------------------- floor displays
   waterStack(stock, b, (stage >= 3 ? -1 : 1) * (doorW / 2 + 0.5), -d / 2 + 0.5, stage === 0 ? 3 : 4);
-  if (stage >= 1) iceFreezer(b, stock, group, -deskHalf - 0.75, deskZ - 0.25);
+  // The ice-cream chest sits by the desk until the other tills need the room.
+  if (stage >= 1 && stage <= 3) iceFreezer(b, stock, group, -deskHalf - 0.75, deskZ - 0.25);
   if (stage >= 3) fruitStand(b, group, doorW / 2 + 1.4, -d / 2 + 0.9);
   if (stage >= 5) {
     // Electronics corner: a TV playing on the wall over boxed ones.
@@ -768,6 +806,33 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
   // ----------------------------------------------------------------- the desk
   const desk = buildDesk(stage, layout, opts.shadows);
   group.add(desk.group);
+  // The other tills, each with its cashier in the shop's pink shirt.
+  const cashiers: Human[] = [];
+  layout.lanes.slice(1).forEach((lane, i) => {
+    checkout(b, group, lane.x, deskZ, deskTop, i + 2);
+    const female = i % 2 === 1;
+    const look: Look = {
+      build: female ? 'woman' : 'man',
+      outfit: 'shirt',
+      skin: ['#c49c80', '#ae7f60', '#d8b293', '#9e7055', '#cba282'][i % 5],
+      primary: '#e8508f',
+      secondary: '#2a2a2e',
+      head: female ? 'hijab' : 'hair',
+      headColor: '#f6d6e6',
+      hairColor: '#15100d',
+      beard: female ? 'none' : (['trim', 'moustache', 'none'] as const)[i % 3],
+      beardColor: '#15100d',
+      height: female ? 1.6 : 1.74,
+      weight: 0.25,
+      shoes: 'formal',
+    };
+    const cashier = new Human(look, 'lite');
+    cashier.root.position.set(lane.x, 0, deskZ + 0.55);
+    cashier.root.rotation.y = Math.PI;
+    cashier.setShadows(opts.shadows);
+    group.add(cashier.root);
+    cashiers.push(cashier);
+  });
   // Desk top material by stage.
   void quartz;
 
@@ -782,10 +847,7 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
   let t = 0;
   const update = (dt: number, minute: number, night: number, people: Vector3[]) => {
     t += dt;
-    // Clock hands keep shop time.
-    const hr = (minute / 60) % 12;
-    clockHands.hour.rotation.z = -(hr / 12) * Math.PI * 2;
-    clockHands.minute.rotation.z = -((minute % 60) / 60) * Math.PI * 2;
+    for (const c of cashiers) c.update(dt);
     ribbon.rotation.x = Math.sin(t * 7) * 0.25 + Math.sin(t * 13) * 0.1 + 0.35;
     // Doors open for anyone close.
     for (const door of doors) {
@@ -797,7 +859,7 @@ export function buildShop(stage: number, opts: { shadows: boolean }): Shop {
     street.update(dt, minute, night, people);
   };
 
-  return { group, layout, desk, street, doors, clockHands, lights, update };
+  return { group, layout, desk, street, doors, cashiers, lights, update };
 }
 
 /** A plane whose UVs repeat every `size` metres. */

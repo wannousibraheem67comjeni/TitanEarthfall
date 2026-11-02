@@ -5,7 +5,6 @@
  * Then the shopkeeper's short answer, and the customer's reply.
  */
 import type { Rng } from '../core/rng';
-import { timeGreeting } from './clock';
 import type { Persona } from './customers';
 import { fmt, type Bill, type Line } from './economy';
 import type { Gender } from './state';
@@ -37,7 +36,7 @@ export function sayMoney(n: number): string {
   return fmt(n);
 }
 
-export function billSpeech(rng: Rng, b: Bill, p: Persona, keeper: Gender, minute: number): Speech {
+export function billSpeech(rng: Rng, b: Bill, p: Persona, keeper: Gender): Speech {
   // Talking to the shopkeeper (Emirati «ج» for her), and the customer about themselves.
   const k = (m: string, f: string) => (keeper === 'f' ? f : m);
   const me = (m: string, f: string) => (p.gender === 'f' ? f : m);
@@ -48,7 +47,7 @@ export function billSpeech(rng: Rng, b: Bill, p: Persona, keeper: Gender, minute
   };
 
   if (p.child) add(`${k('عمو', 'خالة')}، السلام عليكم.`);
-  else add(rng.pick(['السلام عليكم.', 'مرحبا، السلام عليكم.', `${timeGreeting(minute)}.`, 'هلا والله، السلام عليكم.', 'السلام عليكم ورحمة الله.']));
+  else add(rng.pick(['السلام عليكم.', 'مرحبا، السلام عليكم.', 'هلا والله، السلام عليكم.', 'السلام عليكم ورحمة الله.', 'هلا، السلام عليكم.']));
 
   if (b.kind === 'repay') {
     add(`جيت أسدد ديني، ${sayMoney(b.debt ?? 0)}. ${k('الله يجزاك خير، صبرت علي.', 'الله يجزاج خير، صبرتي علي.')}`);
@@ -102,32 +101,11 @@ export function billSpeech(rng: Rng, b: Bill, p: Persona, keeper: Gender, minute
 }
 
 /** The shopkeeper's answer, shown under the picture (the customer's voice is the one heard). */
-export function keeperLine(rng: Rng, b: Bill, accept: boolean, customer: Persona, keeper: Gender): string {
+export function keeperLine(rng: Rng, b: Bill, customer: Persona): string {
   const to = (m: string, f: string) => (customer.gender === 'f' ? f : m);
-  const self = (m: string, f: string) => (keeper === 'f' ? f : m);
   if (b.kind === 'repay') return to('الله يعطيك العافية، ما قصرت.', 'الله يعطيج العافية، ما قصرتي.');
-  if (accept) {
-    if (b.kind === 'credit') return 'سجلتها بالدفتر. لا تنسى.';
-    if (b.kind === 'kid') return 'خذها حبيبي، ولا يهمك.';
-    if (b.pay === 'card') return rng.pick(['حط البطاقة… تمت. مشكور.', 'تمت العملية. الله يعطيك العافية.']);
-    return rng.pick([to('تفضل الباقي، الله يعطيك العافية.', 'تفضلي الباقي، الله يعطيج العافية.'), to('حياك الله، تعال مرة ثانية.', 'حياج الله، تعالي مرة ثانية.'), 'مشكور، بالعافية.']);
-  }
-  switch (b.kind) {
-    case 'fake':
-      return 'هذي الورقة مزورة! ما أقبلها.';
-    case 'trick':
-      return `لا، سعره ${sayMoney(b.claim!.product.price)} مو ${sayMoney(b.claim!.said)}.`;
-    case 'coupon':
-      return `الكوبون منتهي، ${self('آسف', 'آسفة')}.`;
-    case 'discount':
-      return 'ما أقدر أسوي خصم، الأسعار مضبوطة.';
-    case 'short':
-      return `المبلغ ما يكفي، ${self('آسف', 'آسفة')}.`;
-    case 'kid':
-      return 'ما يكفي حبيبي.';
-    case 'credit':
-      return `ما نسجل دين، ${self('آسف', 'آسفة')}.`;
-    default:
-      return `لا، ${self('آسف', 'آسفة')}.`;
-  }
+  if (b.kind === 'credit') return to('سجلتها بالدفتر. لا تنسى.', 'سجلتها بالدفتر. لا تنسين.');
+  if (b.kind === 'kid') return 'خذها حبيبي، ولا يهمك.';
+  if (b.pay === 'card') return rng.pick(['حط البطاقة… تمت. مشكور.', to('تمت العملية. الله يعطيك العافية.', 'تمت العملية. الله يعطيج العافية.')]);
+  return rng.pick([to('تفضل الباقي، الله يعطيك العافية.', 'تفضلي الباقي، الله يعطيج العافية.'), to('حياك الله، تعال مرة ثانية.', 'حياج الله، تعالي مرة ثانية.'), 'مشكور، بالعافية.']);
 }

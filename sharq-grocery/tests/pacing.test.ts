@@ -1,47 +1,48 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng';
-import { CLOSE, OPEN } from '../src/game/clock';
-import { averageProfit, DAILY_INTEREST, decide, LADDER, makeBill, STAGES } from '../src/game/economy';
+import { acceptGain, averageProfit, LADDER, makeBill, STAGES } from '../src/game/economy';
 
-/** Real minutes of a working day (one shop minute a second). */
-const DAY_MINUTES = (CLOSE - OPEN) / 60;
+/** Seconds a customer spends in the shop: walking in, a few shelves, the line, the till. */
+const STAY = 45;
+/** Average size of the waves (quiet, ordinary, rush) relative to a stage's usual crowd. */
+const WAVES = 0.3 * 0.4 + 0.42 * 1 + 0.28 * 1.8;
+/** Customers a minute your desk can serve (goods down, the bill said, accepted), and another cashier. */
+const DESK = 3.75;
+const CASHIER = 7;
 
-/** Average till gain per customer (every bill is accepted; debts count when repaid on average). */
-function gainPerCustomer(stage: number, rng: Rng): number {
-  let gain = 0;
+/** Average money in the till per customer (credit counted as repaid most of the time). */
+function revenue(stage: number, rng: Rng): number {
+  let sum = 0;
   const n = 800;
   for (let k = 0; k < n; k++) {
     const b = makeBill(rng, stage);
-    gain += decide(b, true, rng.next()).money;
-    if (b.kind === 'credit') gain += b.total * 0.75;
+    sum += acceptGain(b) + (b.kind === 'credit' ? b.total * 0.75 : 0);
   }
-  return gain / n;
+  return sum / n;
 }
 
-/** Income per real minute at a stage: customers (one every `spawn` seconds) plus branch income. */
+/** Money a minute at a stage: customers served at all the tills, plus branch income. */
 function perMinute(stage: number, rng: Rng): number {
   const st = STAGES[stage];
-  return gainPerCustomer(stage, rng) * (60 / st.spawn) + st.passive;
+  const arrivals = (st.crowd * WAVES * 60) / STAY;
+  const served = Math.min(arrivals, DESK + st.lanes * CASHIER);
+  return served * revenue(stage, rng) + st.passive;
 }
 
 function minutesPerStage(): number[] {
   const rng = new Rng(7);
-  return STAGES.map((st, i) => {
-    if (st.next === null) return 0;
-    // Savings grow a little each night too (about half the target saved on average).
-    return st.next / (perMinute(i, rng) + ((st.next / 2) * DAILY_INTEREST) / DAY_MINUTES);
-  });
+  return STAGES.map((st, i) => (st.next === null ? 0 : st.next / perMinute(i, rng)));
 }
 
 describe('pacing', () => {
-  it('gives each stage several unhurried minutes', () => {
+  it('gives each stage a few minutes of saving', () => {
     const mins = minutesPerStage();
     console.log('minutes per stage', mins.map((m) => m.toFixed(1)).join(' | '), 'total', mins.reduce((a, b) => a + b, 0).toFixed(0));
     for (const m of mins.slice(0, -1)) {
-      expect(m).toBeGreaterThan(4);
-      expect(m).toBeLessThan(18);
+      expect(m).toBeGreaterThan(3);
+      expect(m).toBeLessThan(12);
     }
-    expect(mins.reduce((a, b) => a + b, 0)).toBeLessThan(100);
+    expect(mins.reduce((a, b) => a + b, 0)).toBeLessThan(70);
   });
 
   it('reaches the top of the ladder from the last stage within the hour', () => {

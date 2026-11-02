@@ -202,7 +202,7 @@ export function personaAgain(rng: Rng, name: string, gender: 'm' | 'f', look?: L
 
 // ---------------------------------------------------------------------------
 
-export type Phase = 'arrive' | 'browse' | 'line' | 'desk' | 'talk' | 'wait' | 'pay' | 'leave' | 'gone';
+export type Phase = 'arrive' | 'browse' | 'line' | 'desk' | 'talk' | 'wait' | 'pay' | 'checkout' | 'leave' | 'gone';
 
 /** Someone walking on their own legs between waypoints. */
 class Walker {
@@ -212,8 +212,8 @@ class Walker {
   speed = 0;
   readonly pace: number;
 
-  constructor(look: Look, scene: Scene, at: Vector3, heading: number) {
-    this.human = new Human(look);
+  constructor(look: Look, scene: Scene, at: Vector3, heading: number, detail: 'full' | 'lite' = 'full') {
+    this.human = new Human(look, detail);
     this.human.root.position.copy(at);
     this.heading = heading;
     this.human.root.rotation.y = heading;
@@ -271,7 +271,8 @@ export class Passerby {
   constructor(rng: Rng, scene: Scene, layout: ShopLayout) {
     const dir = rng.chance(0.5) ? 1 : -1;
     const z = layout.walkZ - rng.range(-0.4, 0.9);
-    this.w = new Walker(makePersona(rng, 'walker').look, scene, new Vector3(-dir * 18, 0, z), dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+    this.w = new Walker(makePersona(rng, 'walker').look, scene, new Vector3(-dir * 18, 0, z), dir > 0 ? Math.PI / 2 : -Math.PI / 2, 'lite');
+    this.w.human.setShadows(false);
     this.w.path = [new Vector3(dir * 18, 0, z)];
     if (rng.chance(0.25)) this.w.human.hold('bag');
     this.curious = rng.chance(0.5);
@@ -299,6 +300,8 @@ export class Passerby {
   }
 }
 
+const tmpLook = new Vector3();
+
 export class Customer {
   readonly w: Walker;
   phase: Phase = 'arrive';
@@ -317,6 +320,9 @@ export class Customer {
   private inside = false;
   /** Called when they pass through the door (for the chime). */
   onDoor: (() => void) | null = null;
+  /** Called when someone at another cashier's till has paid. */
+  onPaid: ((c: Customer) => void) | null = null;
+  private checkoutT = 0;
 
   constructor(
     readonly persona: Persona,
@@ -325,9 +331,13 @@ export class Customer {
     private readonly layout: ShopLayout,
     private readonly desk: Desk,
     rng: Rng,
+    /** Which till they will pay at: 0 is the shopkeeper's desk. */
+    readonly lane = 0,
   ) {
     const side = rng.chance(0.5) ? 1 : -1;
-    this.w = new Walker(persona.look, scene, new Vector3(side * 16, 0, layout.walkZ - rng.range(0, 0.6)), -side * (Math.PI / 2));
+    // Only people coming to your desk need faces you can read; the crowd is lighter.
+    this.w = new Walker(persona.look, scene, new Vector3(side * 16, 0, layout.walkZ - rng.range(0, 0.6)), -side * (Math.PI / 2), lane === 0 ? 'full' : 'lite');
+    if (lane !== 0) this.w.human.setShadows(false);
     // Along the pavement, then in through the door.
     this.w.path = [new Vector3(side * 1.4, 0, layout.walkZ + 0.3), layout.doorOut.clone(), layout.door.clone()];
     // Which shelves to visit (a debtor comes straight to the desk).
@@ -336,8 +346,8 @@ export class Customer {
       this.stops = rng.shuffle(layout.picks).slice(0, n);
       this.stops.sort((a, b) => a.at.z - b.at.z);
     }
-    // The goods that will land on the desk.
-    let count = 0;
+    // The goods that will land on the desk (other tills ring theirs up out of sight).
+    let count = lane === 0 ? 0 : 99;
     for (const l of bill.lines) {
       const copies = Math.min(l.qty, l.product.pack === 'bigbox' || l.product.pack === 'folder' || l.product.pack === 'case' ? 1 : 3);
       for (let i = 0; i < copies && count < 8; i++, count++) this.toPlace.push(() => desk.place(productObject(l.product)));
@@ -362,13 +372,19 @@ export class Customer {
     return [new Vector3(from.x, 0, z), new Vector3(to.x, 0, z), to.clone()];
   }
 
-  /** Join the line at a place (0 = at the desk). */
+  /** Join the line at a place (0 = being served). */
   goTo(slot: number): void {
     if (this.slot === slot) return;
     this.slot = slot;
-    const q = slot === 0 ? this.layout.spot : this.layout.queue(slot);
+    const lane = this.layout.lanes[this.lane] ?? this.layout.lanes[0];
+    const q = slot === 0 ? lane.spot : lane.queue(slot);
     this.w.path = this.route(q);
     this.phase = 'line';
+  }
+
+  /** The line is full: look at one more shelf meanwhile. */
+  browseMore(stop: { at: Vector3; face: number; shelfY: number }): void {
+    this.stops.push(stop);
   }
 
   /** Done shopping and ready to queue? */
@@ -389,8 +405,7 @@ export class Customer {
   private pendingBag = false;
 
   private depart(withBag: boolean): void {
-    const goods = this.desk.clear();
-    void goods;
+    if (this.lane === 0) this.desk.clear();
     this.human.hold(withBag && this.bill.kind !== 'repay' ? 'bag' : 'none');
     this.human.pose.give = 0;
     this.phase = 'leave';
@@ -435,15 +450,28 @@ export class Customer {
           break;
         }
         case 'line':
-          if (this.slot === 0) {
+          if (this.slot === 0 && this.lane === 0) {
             this.phase = 'desk';
             this.placeT = 0.5;
+          } else if (this.slot === 0) {
+            // Another cashier rings it up: a few seconds per item, then pay.
+            this.phase = 'checkout';
+            this.checkoutT = 3.5 + Math.min(8, this.bill.lines.reduce((n, l) => n + Math.min(l.qty, 4), 0)) * 0.55;
           } else this.w.face(0, dt);
           break;
         case 'leave':
           this.phase = 'gone';
           this.human.dispose();
           return;
+      }
+    }
+    if (this.phase === 'checkout') {
+      this.w.face(0, dt);
+      this.checkoutT -= dt;
+      pose.give += ((this.checkoutT < 1.2 ? 1 : 0) - pose.give) * Math.min(1, dt * 5);
+      if (this.checkoutT <= 0) {
+        this.onPaid?.(this);
+        this.depart(true);
       }
     }
     if (this.phase === 'desk' || this.phase === 'talk' || this.phase === 'wait' || this.phase === 'pay') {
@@ -462,8 +490,11 @@ export class Customer {
       this.onDoor?.();
     }
     // Where they look: at the shopkeeper near and at the desk, otherwise around.
-    const near = this.phase === 'desk' || this.phase === 'talk' || this.phase === 'wait' || this.phase === 'pay' || (this.phase === 'line' && this.slot <= 1);
-    pose.lookAt = near ? camera : this.phase === 'arrive' && this.pos.z > this.layout.walkZ + 0.5 ? camera : null;
+    const near = this.phase === 'desk' || this.phase === 'talk' || this.phase === 'wait' || this.phase === 'pay' || this.phase === 'checkout' || (this.phase === 'line' && this.slot <= 1);
+    if (this.lane !== 0) {
+      const lane = this.layout.lanes[this.lane];
+      pose.lookAt = near && lane ? tmpLook.set(lane.x, 1.55, this.layout.deskZ + 0.55) : null;
+    } else pose.lookAt = near ? camera : this.phase === 'arrive' && this.pos.z > this.layout.walkZ + 0.5 ? camera : null;
     this.w.animate(dt);
   }
 

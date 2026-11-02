@@ -79,61 +79,47 @@ describe('the shop takes every bill', () => {
       for (let i = 0; i < 300; i++) expect(['normal', 'big', 'kid', 'credit']).toContain(pickKind(rng, stage));
   });
 
-  it('accepting an honest bill never loses money', () => {
+  it('everything a customer pays goes in the till', () => {
     const rng = new Rng(19);
     for (let stage = 0; stage < STAGES.length; stage++)
-      for (const kind of ['normal', 'big'] as Kind[]) expect(decide(makeBill(rng, stage, kind), true, 0.5).money).toBeGreaterThan(0);
+      for (const kind of ['normal', 'big'] as Kind[]) {
+        const b = makeBill(rng, stage, kind);
+        expect(decide(b).money).toBeCloseTo(b.total, 2);
+        expect(acceptGain(b)).toBeCloseTo(b.total, 2);
+      }
+  });
+
+  it('a child a dirham short: the coins go in the till, and a star for kindness', () => {
+    const b = makeBill(new Rng(5), 0, 'kid');
+    const out = decide(b);
+    expect(out.money).toBe(b.total - 1);
+    expect(out.rep).toBeGreaterThan(0.2);
+  });
+
+  it('credit is written in the debt book and paid back later in full', () => {
+    const b = makeBill(new Rng(6), 2, 'credit');
+    const out = decide(b);
+    expect(out.money).toBe(0);
+    expect(out.debt).toBe(b.total);
+    expect(decide({ ...b, kind: 'repay', debt: b.total }).money).toBe(b.total);
+  });
+
+  it('talks to her as her', () => {
+    const b = makeBill(new Rng(8), 2, 'credit');
+    expect(decide(b, { she: true }).text).toContain('عليها');
+    expect(decide(b, { keeperShe: true }).says).toContain('لج');
   });
 });
 
-describe('decisions', () => {
-  const rng = new Rng(5);
-
-  it('accepting an honest bill earns the margin; refusing it costs stars', () => {
-    const b = makeBill(rng, 1, 'normal');
-    const yes = decide(b, true, 0.5);
-    expect(yes.money).toBeCloseTo(b.total - b.cost, 2);
-    expect(yes.good).toBe(true);
-    const no = decide(b, false, 0.5);
-    expect(no.money).toBe(0);
-    expect(no.rep).toBeLessThan(0);
-  });
-
-  it('a fake note loses the goods when accepted and is praised when refused', () => {
-    const b = makeBill(rng, 2, 'fake');
-    expect(acceptGain(b)).toBe(-b.cost);
-    expect(decide(b, true, 0).good).toBe(false);
-    const no = decide(b, false, 0);
-    expect(no.good).toBe(true);
-    expect(no.rep).toBeGreaterThan(0);
-  });
-
-  it('calling out a price trick usually gets the right price', () => {
-    const b = makeBill(rng, 3, 'trick');
-    expect(decide(b, false, 0.1).money).toBeCloseTo(b.total - b.cost, 2);
-    expect(decide(b, false, 0.9).money).toBe(0);
-    expect(decide(b, true, 0).money).toBeLessThan(b.total - b.cost);
-  });
-
-  it('an expired coupon: refuse and they usually pay in full', () => {
-    const b = makeBill(rng, 3, 'coupon');
-    expect(decide(b, false, 0.2).money).toBeCloseTo(b.total - b.cost, 2);
-    expect(decide(b, true, 0).good).toBe(false);
-  });
-
-  it('credit is recorded as a debt and a repayment brings it back', () => {
-    const b = makeBill(rng, 2, 'credit');
-    const out = decide(b, true, 0);
-    expect(out.money).toBe(-b.cost);
-    expect(out.debt).toBe(b.total);
-    const repay = decide({ ...b, kind: 'repay', debt: b.total }, true, 0);
-    expect(repay.money).toBe(b.total);
-  });
-
-  it('a kind word to a child is worth more stars than the dirham', () => {
-    const b = makeBill(rng, 0, 'kid');
-    expect(decide(b, true, 0).rep).toBeGreaterThan(0);
-    expect(decide(b, false, 0).rep).toBeLessThan(0);
+describe('stages', () => {
+  it('a small shop gets one to three customers, a big one dozens, with more cashiers', () => {
+    expect(STAGES[0].crowd).toBeLessThanOrEqual(3);
+    expect(STAGES[0].lanes).toBe(0);
+    expect(STAGES[STAGES.length - 1].crowd).toBeGreaterThanOrEqual(20);
+    for (let i = 1; i < STAGES.length; i++) {
+      expect(STAGES[i].crowd).toBeGreaterThanOrEqual(STAGES[i - 1].crowd);
+      expect(STAGES[i].lanes).toBeGreaterThanOrEqual(STAGES[i - 1].lanes);
+    }
   });
 });
 
@@ -161,7 +147,7 @@ describe('what customers say', () => {
     const rng = new Rng(21);
     for (let i = 0; i < 40; i++) {
       const b = makeBill(rng, 3, 'normal');
-      const s = billSpeech(rng, b, persona('m'), 'm', 8 * 60);
+      const s = billSpeech(rng, b, persona('m'), 'm');
       expect(s.marks).toHaveLength(b.lines.length);
       b.lines.forEach((l, j) => expect(s.text.slice(s.marks[j].at)).toMatch(new RegExp(`^و?${itemPhrase(l)}`)));
       expect(s.text).toContain('تقبل فاتورتي؟');
@@ -172,7 +158,7 @@ describe('what customers say', () => {
 
   it('talks to her as her', () => {
     const rng = new Rng(4);
-    const s = billSpeech(rng, makeBill(rng, 1, 'credit'), persona('f'), 'f', 9 * 60);
+    const s = billSpeech(rng, makeBill(rng, 1, 'credit'), persona('f'), 'f');
     expect(s.text).toContain('سجليها');
     expect(s.text).toContain('تقبلين فاتورتي؟');
   });
@@ -189,6 +175,6 @@ describe('what customers say', () => {
 
   it('a child asks the shopkeeper as uncle or auntie', () => {
     const rng = new Rng(2);
-    expect(billSpeech(rng, makeBill(rng, 0, 'kid'), persona('m', true), 'f', 600).text).toMatch(/^خالة/);
+    expect(billSpeech(rng, makeBill(rng, 0, 'kid'), persona('m', true), 'f').text).toMatch(/^خالة/);
   });
 });
