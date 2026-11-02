@@ -1,0 +1,22 @@
+{
+  "oases": [
+    { "name": "Faiyum",          "lat": 29.31, "lon": 30.84, "radius": 26000 },
+    { "name": "Wadi El Natrun",  "lat": 30.40, "lon": 30.30, "radius": 14000 },
+    { "name": "Kharga",          "lat": 25.45, "lon": 30.55, "radius": 12000 },
+    { "name": "Dakhla (west)",   "lat": 25.52, "lon": 28.95, "radius": 16000 },
+    { "name": "Dakhla (east)",   "lat": 25.62, "lon": 29.20, "radius": 12000 },
+    { "name": "Farafra",         "lat": 27.06, "lon": 27.97, "radius": 6000 },
+    { "name": "Bahariya",        "lat": 28.35, "lon": 28.87, "radius": 9000 },
+    { "name": "Siwa",            "lat": 29.20, "lon": 25.52, "radius": 9000 },
+    { "name": "Toshka",          "lat": 22.72, "lon": 31.25, "radius": 15000 },
+    { "name": "East Oweinat",    "lat": 22.55, "lon": 28.55, "radius": 20000 }
+  ],
+  "sandSeas": [
+    { "name": "Great Sand Sea", "crestDeg": 345, "spacing": 1600, "amplitude": 55,
+      "ring": [24.1, 29.5, 25.3, 29.4, 26.1, 29.0, 26.5, 28.0, 26.8, 26.8, 26.6, 25.4, 25.9, 24.3, 25.0, 24.0, 24.1, 24.4] },
+    { "name": "Abu Moharik Dunes", "crestDeg": 340, "spacing": 900, "amplitude": 18,
+      "ring": [28.95, 28.75, 29.15, 28.75, 30.55, 25.35, 30.35, 25.35] },
+    { "name": "North Sinai Dunes", "crestDeg": 80, "spacing": 800, "amplitude": 22,
+      "ring": [32.6, 31.0, 34.2, 31.15, 34.2, 30.6, 33.0, 30.45] }
+  ]
+}
